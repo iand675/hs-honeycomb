@@ -1,0 +1,1 @@
+module Honeycomb.Tracing.Sampling.DeterministicTraceSampler where
