@@ -32,6 +32,7 @@ addRequestFields req = addFields $ H.fromList
   , (clientRequestMethodField, toJSON $ decodeUtf8 $ HTTP.method req)
   , (clientRequestContentTypeField, toJSON $ fmap decodeUtf8 $ lookup hContentType $ HTTP.requestHeaders req)
   , (packageField, String "http-client")
+  , (typeField, String "http_client")
   , (requestHostField, toJSON $ decodeUtf8 $ host req)
   -- TODO
   -- , (clientRequestContentLengthField, _)

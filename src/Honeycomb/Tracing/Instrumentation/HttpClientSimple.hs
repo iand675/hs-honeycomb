@@ -29,9 +29,13 @@ import qualified Data.ByteString.Lazy as Lazy
 import Data.Aeson
 import Conduit
 import Honeycomb.Tracing.Instrumentation.HttpClient (addRequestFields, addResponseFields)
+import Honeycomb.Tracing.Fields
+import Data.Text (Text)
 
 annotateBasics :: MonadTrace env m => Request -> (Request -> m (Response a)) -> m (Response a)
 annotateBasics req f = do
+  addField packageField ("http-conduit" :: Text)
+  addField typeField ("http_client" :: Text)
   addRequestFields req
   resp <- f req
   addResponseFields resp

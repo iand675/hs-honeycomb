@@ -7,7 +7,7 @@ import Data.Aeson ( Value(Null, String), ToJSON(toJSON) )
 import qualified Data.Text.Encoding as T
 import Data.Typeable ( typeOf )
 import Data.Vault.Lazy ( insert, lookup, newKey, Key )
-import Honeycomb.Tracing ( Span, Trace, newTrace, closeTrace, spanning, addField, addFields, TraceConfig (traceConfigServiceName) )
+import Honeycomb.Tracing ( Span, Trace, TraceConfig (traceConfigServiceName) )
 import Honeycomb.Tracing.Fields
     ( typeField,
       packageField,
@@ -27,6 +27,7 @@ import Honeycomb.Tracing.Fields
       requestQueryParamsField,
       statusCodeField,
       responseContentTypeField )
+import Honeycomb.Tracing.Raw ( newTrace, closeTrace, spanning, addField, addFields )
 import Network.HTTP.Types
     ( Status(statusCode), hAccept, hContentType )
 import Network.Wai

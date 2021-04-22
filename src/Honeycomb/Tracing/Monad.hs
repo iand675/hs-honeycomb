@@ -8,7 +8,7 @@ import Data.Aeson
 import Data.Text (Text)
 import Data.HashMap.Strict (HashMap)
 import Honeycomb.Tracing
-import qualified Honeycomb.Tracing as Simple
+import qualified Honeycomb.Tracing.Raw as Raw
 import UnliftIO
 import Control.Monad.Reader.Class
 import Lens.Micro
@@ -60,15 +60,15 @@ spanning name_ m = do
   errorHandler <- askErrorHandler
   case errorHandler of
     SpanErrorHandler errF -> do
-      Simple.spanning (trace span_) svc (Just $ spanId span_) name_ (\s e -> liftIO $ errF s e) $ \s -> do
+      Raw.spanning (trace span_) svc (Just $ spanId span_) name_ (\s e -> liftIO $ errF s e) $ \s -> do
         localSpan (const s) m
 
 addField :: (MonadIO m, MonadReader env m, HasSpan env, ToJSON a) => Text -> a -> m ()
 addField t x = do
   s <- askSpan
-  Simple.addField s t x
+  Raw.addField s t x
 
 addFields :: (MonadIO m, MonadReader env m, HasSpan env) => HashMap Text Value -> m () 
 addFields m = do
   s <- askSpan
-  Simple.addFields s m
+  Raw.addFields s m

@@ -11,6 +11,7 @@ import Data.Aeson (Value, ToJSON (toJSON))
 import System.Posix
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Honeycomb.Tracing
+import Honeycomb.Tracing.Raw
 
 annotateTraceWithSystemInfo :: MonadIO m => Trace -> m ()
 annotateTraceWithSystemInfo t = do
