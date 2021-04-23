@@ -24,18 +24,16 @@ initializeHoneycomb :: MonadUnliftIO m => Config -> m HoneycombClient
 initializeHoneycomb conf = do
   rand <- liftIO createSystemRandom
   m <- liftIO getGlobalManager
-  buf <- liftIO $ new 8 -- TODO allow configuration
+  buf <- liftIO $ new 32768 -- TODO allow configuration
   dummyWorker <- async $ pure ()
   let client = HoneycombClient m conf rand buf dummyWorker
   innerWorker <- async $ forever $ do
-    liftIO $ putStrLn "lööp"
     vec <- takeBatchBlocking buf
     -- TODO handle dispatch to multiple places, etc.
     -- TODO handle sample rate
     -- TODO log errors or something
     resp <- mapM (API.sendEvent client (defaultDataset conf))
       $ fmap (\Event{..} -> API.Event Nothing _timestamp _fields) vec
-    liftIO $ print resp
     pure ()
   pure $ client { clientWorker = innerWorker }
   

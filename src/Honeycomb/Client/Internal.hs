@@ -42,7 +42,6 @@ data Event = Event
 
 post :: (ToJSON a) => (Request -> Manager -> IO (Response b)) -> HoneycombClient -> [Text] -> RequestHeaders -> a -> IO (Response b)
 post f HoneycombClient{..} pathPieces hs x = do
-  print req
   f req clientManager
   where 
     req = defaultRequest 
