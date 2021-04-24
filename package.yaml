@@ -62,6 +62,7 @@ dependencies:
 - exceptions
 - resourcet
 - http-conduit
+- katip
 
 library:
   source-dirs: src

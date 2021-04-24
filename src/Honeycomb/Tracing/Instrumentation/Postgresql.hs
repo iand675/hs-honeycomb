@@ -222,11 +222,11 @@ formatQuery c q r = spanning "formatQuery" $ do
 
 annotateBasics :: MonadTrace env m => m ()
 annotateBasics = do
-  addField typeField ("database/postgresql" :: Text)
-  addField packageField ("postgresql-simple" :: Text)
+  addSpanField typeField ("database/postgresql" :: Text)
+  addSpanField packageField ("postgresql-simple" :: Text)
 
 annotateQuery :: (MonadTrace env m) => Query -> m ()
-annotateQuery q = addField databaseQueryField (show q)
+annotateQuery q = addSpanField databaseQueryField (show q)
 
 -- annotateParams :: (MonadTrace env m) => q -> m ()
 -- annotateParams q = addField databaseQueryField (show q)

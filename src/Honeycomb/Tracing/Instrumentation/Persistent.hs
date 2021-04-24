@@ -18,7 +18,7 @@ import UnliftIO
 import qualified Data.HashMap.Strict as H
 import Data.Aeson
 
-wrapConnection :: (MonadUnliftIO m, MonadReader r m, HasTraceConfig r) => Span -> SqlBackend -> m SqlBackend
+wrapConnection :: (MonadUnliftIO m, MonadReader r m, HasTracer r) => Span -> SqlBackend -> m SqlBackend
 wrapConnection EmptySpan conn = pure conn
 wrapConnection Span{..} conn = do
   m <- askUnliftIO
@@ -31,29 +31,29 @@ wrapConnection Span{..} conn = do
           { stmtExecute = \ps -> unliftIO m $ do
             spanning
               trace
-              (traceConfigServiceName $ traceConfig trace)
+              (tracerServiceName $ traceTracer trace)
               (Just spanId)
               "execute"
               (\child (e :: SomeException) -> do
-                addField child databaseError $ show $ typeOf e
-                addField child databaseErrorDetails $ show e
+                addSpanField child databaseError $ show $ typeOf e
+                addSpanField child databaseErrorDetails $ show e
               )
               (\child -> do
-                addField child databaseQueryField t
-                addField child databaseQueryParametersField $ show ps
+                annotateBasics child conn
+                addSpanField child databaseQueryField t
+                addSpanField child databaseQueryParametersField $ show ps
                 liftIO $ stmtExecute stmt ps
               )
 
           , stmtQuery = \ps -> do
               child <- mkAcquire (unliftIO m $ newSpan
                     trace
-                    (traceConfigServiceName $ traceConfig trace)
+                    (tracerServiceName $ traceTracer trace)
                     (Just spanId)
                     "query") closeSpan
-
-              addField child packageField ("persistent/esqueleto" :: Text)
-              addField child databaseQueryField t
-              addField child databaseQueryParametersField $ show ps
+              annotateBasics child conn
+              addSpanField child databaseQueryField t
+              addSpanField child databaseQueryParametersField $ show ps
 
               case stmtQuery stmt ps of
                 Acquire stmtQueryAcquireF -> Acquire $ \f -> handle (queryErrorHandler child) (stmtQueryAcquireF f)
@@ -62,52 +62,56 @@ wrapConnection Span{..} conn = do
   where
     queryErrorHandler child (e :: SomeException) = case e of
       SomeException e' -> do
-        addField child databaseError $ show $ typeOf e'
-        addField child databaseErrorDetails $ show e'
+        addSpanField child databaseError $ show $ typeOf e'
+        addSpanField child databaseErrorDetails $ show e'
         throwIO e'
 
     wrappedBegin m preparer iso = unliftIO m $ do
       spanning
         trace
-        (traceConfigServiceName $ traceConfig trace)
+        (tracerServiceName $ traceTracer trace)
         (Just spanId)
-        "connBegin"
+        "begin"
         (\child (e :: SomeException) -> do
-          addField child databaseError $ show $ typeOf e
-          addField child databaseErrorDetails $ show e
+          addSpanField child databaseError $ show $ typeOf e
+          addSpanField child databaseErrorDetails $ show e
         )
-        (\_child -> do
-          liftIO $ connBegin conn preparer iso
+        (\child -> liftIO $ do
+          annotateBasics child conn
+          connBegin conn preparer iso
         )
     wrappedCommit m preparer = unliftIO m $ do
       spanning
         trace
-        (traceConfigServiceName $ traceConfig trace)
+        (tracerServiceName $ traceTracer trace)
         (Just spanId)
-        "connCommit"
+        "commit"
         (\child (e :: SomeException) -> do
-          addField child databaseError $ show $ typeOf e
-          addField child databaseErrorDetails $ show e
+          addSpanField child databaseError $ show $ typeOf e
+          addSpanField child databaseErrorDetails $ show e
         )
-        (\_child -> do
-          liftIO $ connCommit conn preparer
+        (\child -> liftIO $ do
+          annotateBasics child conn
+          connCommit conn preparer
         )
     wrappedRollback m preparer = unliftIO m $ do
       spanning
         trace
-        (traceConfigServiceName $ traceConfig trace)
+        (tracerServiceName $ traceTracer trace)
         (Just spanId)
-        "connRollback"
+        "rollback"
         (\child (e :: SomeException) -> do
-          addField child databaseError $ show $ typeOf e
-          addField child databaseErrorDetails $ show e
+          addSpanField child databaseError $ show $ typeOf e
+          addSpanField child databaseErrorDetails $ show e
         )
-        (\_child -> do
-          liftIO $ connRollback conn preparer
+        (\child -> liftIO $ do
+          annotateBasics child conn
+          connRollback conn preparer
         )
 
-annotateBasics :: Span -> SqlBackend -> IO ()
-annotateBasics s conn = addFields s $ H.fromList
+annotateBasics :: MonadIO m => Span -> SqlBackend -> m ()
+annotateBasics s conn = addSpanFields s $ H.fromList
   [ (packageField, String "persistent/esqueleto")
-  , (typeField, String ("database/" <> connRDBMS conn))
+  , (serviceNameField, String $ connRDBMS conn)
+  -- , (typeField, String ("database/" <> connRDBMS conn))
   ]

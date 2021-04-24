@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RecordWildCards #-}
 module Honeycomb.Tracing.Raw where
@@ -18,15 +19,15 @@ import Lens.Micro.Mtl
 import Honeycomb.Client
 import Honeycomb.Tracing.Fields
 
-newTrace :: (MonadIO m, MonadReader r m, HasTraceConfig r) => m Trace
+newTrace :: (MonadIO m, MonadReader r m, HasTracer r) => m Trace
 newTrace =
   Trace
-    <$> view (traceConfigL . honeycombClientL)
-    <*> (view traceConfigL >>= \TraceConfig{..} -> liftIO $ generateTraceId traceIdGenerator)
+    <$> view (tracerL . honeycombClientL)
+    <*> (view tracerL >>= \Tracer{..} -> liftIO $ generateTraceId tracerIdGenerator)
     <*> liftIO (newIORef Nothing)
     <*> liftIO (newIORef mempty)
     <*> liftIO (newIORef mempty)
-    <*> view traceConfigL
+    <*> view tracerL
 
 makeEvent :: HashMap Text Value -> Span -> IO (Maybe Event)
 makeEvent _ EmptySpan = pure Nothing
@@ -38,8 +39,8 @@ makeEvent traceFields Span{..} = do
       officialFields =
         addParentId
           [ (spanNameField, String name),
-            (serviceNameField, String service),
-            (durationField, toJSON (max (getTimespan (width (TimeInterval startT endT)) `div` 1_000_000) 1)),
+            (serviceNameField, toJSON service),
+            (durationField, toJSON (((fromIntegral $ getTimespan $ width $ TimeInterval startT endT) / 1_000_000) :: Double)),
             (spanIdField, toJSON spanId),
             (traceIdField, toJSON $ traceId trace)
             -- (metaSpanTypeField, String metaTypeSpanEventValue)
@@ -64,14 +65,14 @@ closeTrace t = liftIO $ do
     _postprocessEvent = pure . Just
 
 newSpan ::
-  (MonadIO m, MonadReader r m, HasTraceConfig r) =>
+  (MonadIO m, MonadReader r m, HasTracer r) =>
   Trace ->
   ServiceName -> -- Service
   Maybe SpanId -> -- Parent ID
   Text -> -- Name
   m Span
-newSpan t (ServiceName svc) pid n = do
-  _id <- view traceConfigL >>= \TraceConfig{..} -> liftIO $ generateSpanId traceIdGenerator
+newSpan t svc pid n = do
+  _id <- view tracerL >>= \Tracer{..} -> liftIO $ generateSpanId tracerIdGenerator
   liftIO $ do
     ts <- now
     -- putStrLn ("Starting span: " ++ show _id ++ " at " ++ show ts)
@@ -93,7 +94,7 @@ closeSpan Span {..} = liftIO $ do
 closeSpan EmptySpan = pure ()
 
 spanning ::
-  (MonadUnliftIO m, MonadReader r m, HasTraceConfig r, Exception e) =>
+  (MonadUnliftIO m, MonadReader r m, HasTracer r, Exception e) =>
   Trace ->
   ServiceName ->
   Maybe SpanId ->
@@ -108,13 +109,59 @@ spanning t svc pid n errorHandler f = bracket (newSpan t svc pid n) closeSpan $ 
 addTraceField :: (MonadIO m, ToJSON a) => Trace -> Text -> a -> m ()
 addTraceField trace fieldName x = modifyIORef' (traceFields trace) (H.insert fieldName $ toJSON x)
 
-addField :: (MonadIO m, ToJSON a) => Span -> Text -> a -> m ()
-addField EmptySpan _ _ = pure ()
-addField Span{..} fieldName x = modifyIORef' fields (H.insert fieldName $ toJSON x)
+addSpanField :: (MonadIO m, ToJSON a) => Span -> Text -> a -> m ()
+addSpanField EmptySpan _ _ = pure ()
+addSpanField Span{..} fieldName x = do
+  modifyIORef' fields (H.insert fieldName $ toJSON x)
 
 addTraceFields :: (MonadIO m) => Trace -> HashMap Text Value -> m ()
 addTraceFields trace fs = modifyIORef' (traceFields trace) (<> fs)
 
-addFields :: (MonadIO m) => Span -> HashMap Text Value -> m ()
-addFields EmptySpan _ = pure ()
-addFields Span{..} fs = modifyIORef' fields (<> fs)
+addSpanFields :: (MonadIO m) => Span -> HashMap Text Value -> m ()
+addSpanFields EmptySpan _ = pure ()
+addSpanFields Span{..} fs = modifyIORef' fields (<> fs)
+
+data Link = Link
+  { linkSpanId :: SpanId
+  , linkTraceId :: TraceId
+  }
+
+addLink :: (MonadIO m, MonadReader r m, HasTracer r) => Trace -> ServiceName -> SpanId -> Text -> Link -> HashMap Text Value -> m ()
+addLink t svc pid n Link{..} fs = do
+  _id <- view tracerL >>= \Tracer{..} -> liftIO $ generateSpanId tracerIdGenerator
+  liftIO $ do
+    ts <- now
+    -- putStrLn ("Starting span: " ++ show _id ++ " at " ++ show ts)
+    newSpan_ <-
+      Span _id n svc
+        <$> newIORef ts
+        <*> newIORef (Just ts)
+        <*> pure (Just pid)
+        <*> pure t
+        <*> newIORef (fs <> H.fromList
+            [ (metaAnnotationTypeField, String "link")
+            , ("trace.link.span_id", toJSON linkSpanId)
+            , ("trace.link.trace_id", toJSON linkTraceId)
+            ]
+          )
+    modifyIORef' (traceSpans t) (H.insert _id newSpan_)
+    pure ()
+
+addEvent :: (MonadIO m, MonadReader r m, HasTracer r) => Trace -> ServiceName -> SpanId -> Text -> HashMap Text Value -> m ()
+addEvent t svc pid n fs = do
+  _id <- view tracerL >>= \Tracer{..} -> liftIO $ generateSpanId tracerIdGenerator
+  liftIO $ do
+    ts <- now
+    -- putStrLn ("Starting span: " ++ show _id ++ " at " ++ show ts)
+    newSpan_ <-
+      Span _id n svc
+        <$> newIORef ts
+        <*> newIORef (Just ts)
+        <*> pure (Just pid)
+        <*> pure t
+        <*> newIORef (fs <> H.fromList
+            [ (metaAnnotationTypeField, String "span_event")
+            ]
+          )
+    modifyIORef' (traceSpans t) (H.insert _id newSpan_)
+    pure ()

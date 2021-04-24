@@ -7,7 +7,7 @@ module Honeycomb.Tracing.Instrumentation.Yesod where
 import qualified Data.ByteString.Char8 as C
 import Data.Char (toLower)
 import Data.Typeable ()
-import Honeycomb.Tracing hiding (addField, addFields)-- ( Span, addField, HasTraceConfig (getTraceConfig), HasSpan )
+import Honeycomb.Tracing hiding (addSpanField, addSpanFields)-- ( Span, addField, HasTraceConfig (getTraceConfig), HasSpan )
 import Honeycomb.Tracing.Fields ( spanNameField )
 import Honeycomb.Tracing.Instrumentation.Wai (lookupSpan)
 import Honeycomb.Types ()
@@ -18,7 +18,9 @@ import Yesod.Core.Types
     ( HandlerData(handlerEnv),
       RunHandlerEnv(rheSite) )
 import Honeycomb.Tracing.Monad
-import Lens.Micro (lens, Lens')
+import Lens.Micro (lens, Lens', (.~))
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (local)
 
 handlerEnvL :: Lens' (HandlerData child site) (RunHandlerEnv child site)
 handlerEnvL = lens handlerEnv (\h e -> h { handlerEnv = e })
@@ -38,28 +40,29 @@ instance HasSpan site => HasSpan (RunHandlerEnv child site) where
 instance HasSpan site => HasSpan (HandlerData child site) where
   spanL = handlerEnvL . spanL
 
-instance HasTraceConfig site => HasTraceConfig (RunHandlerEnv child site) where
-  traceConfigL = rheSiteL . traceConfigL
+instance HasTracer site => HasTracer (RunHandlerEnv child site) where
+  tracerL = rheSiteL . tracerL
 
-instance HasTraceConfig site => HasTraceConfig (HandlerData child site) where
-  traceConfigL = handlerEnvL . traceConfigL
+instance HasTracer site => HasTracer (HandlerData child site) where
+  tracerL = handlerEnvL . tracerL
 
-instance HasTraceConfig site => HasServiceName (RunHandlerEnv child site) where
-  serviceNameL = rheSiteL . traceConfigL . serviceNameL
+instance HasTracer site => HasServiceName (RunHandlerEnv child site) where
+  serviceNameL = rheSiteL . tracerL . serviceNameL
 
-instance HasTraceConfig site => HasServiceName (HandlerData child site) where
+instance HasTracer site => HasServiceName (HandlerData child site) where
   serviceNameL = handlerEnvL . serviceNameL
 
 beelineMiddleware :: (Show (Route site), HasSpan site) => HandlerFor site res -> HandlerFor site res
 beelineMiddleware handler = do
-  route <- getCurrentRoute
   req <- waiRequest
-  case route of
-    Nothing -> handler
-    Just r -> case lookupSpan req of
-      Nothing -> handler
-      Just span_ -> do
-        -- TODO Abusing the show instance like this is not ideal
-        addField "request.route" $ head $ words $ show r
-        addField spanNameField (C.unpack (C.map toLower (requestMethod req)) ++ (head $ words $ show r))
-        localSpan (const span_) handler
+  case lookupSpan req of
+    Nothing -> handler -- TODO set up a root span & trace if not instrumented in WAI middleware
+    Just span_ -> local (spanL .~ span_) $ do
+      route <- getCurrentRoute
+      case route of
+        Nothing -> handler
+        Just r -> do
+          -- TODO Abusing the show instance like this is not ideal
+          addSpanField "request.route" $ head $ words $ show r
+          addSpanField spanNameField (C.unpack (C.map toLower (requestMethod req)) ++ (head $ words $ show r))
+          handler

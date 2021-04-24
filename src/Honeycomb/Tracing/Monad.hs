@@ -49,7 +49,7 @@ type MonadTrace env m =
   , MonadReader env m
   , HasSpan env
   , HasServiceName env
-  , HasTraceConfig env
+  , HasTracer env
   , HasSpanErrorHandler env
   )
 
@@ -63,12 +63,12 @@ spanning name_ m = do
       Raw.spanning (trace span_) svc (Just $ spanId span_) name_ (\s e -> liftIO $ errF s e) $ \s -> do
         localSpan (const s) m
 
-addField :: (MonadIO m, MonadReader env m, HasSpan env, ToJSON a) => Text -> a -> m ()
-addField t x = do
+addSpanField :: (MonadIO m, MonadReader env m, HasSpan env, ToJSON a) => Text -> a -> m ()
+addSpanField t x = do
   s <- askSpan
-  Raw.addField s t x
+  Raw.addSpanField s t x
 
-addFields :: (MonadIO m, MonadReader env m, HasSpan env) => HashMap Text Value -> m () 
-addFields m = do
+addSpanFields :: (MonadIO m, MonadReader env m, HasSpan env) => HashMap Text Value -> m () 
+addSpanFields m = do
   s <- askSpan
-  Raw.addFields s m
+  Raw.addSpanFields s m

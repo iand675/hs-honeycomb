@@ -18,10 +18,10 @@ import Honeycomb.Tracing
       HasServiceName(..),
       HasSpan(..),
       HasSpanErrorHandler(..),
-      HasTraceConfig(..),
+      HasTracer(..),
       Span(EmptySpan),
       SpanErrorHandler,
-      TraceConfig(TraceConfig) )
+      Tracer(Tracer) )
 import Honeycomb.Tracing.Monad ( spanning )
 import Honeycomb.Types ( config, DatasetName(DatasetName) )
 import Honeycomb.Tracing.Sampling ( Always(Always) )
@@ -53,17 +53,17 @@ import System.Environment ( getEnv )
 
 -- | This is my data type. There are many like it, but this one is mine.
 data Minimal = Minimal
-  { minimalTracer :: TraceConfig
+  { minimalTracer :: Tracer
   , minimalCurrentSpan :: Span
   , minimalSqlConn :: SqlBackend
   , minimalSpanErrorHandler :: SpanErrorHandler
   }
 
-instance HasTraceConfig Minimal where
-  traceConfigL = lens minimalTracer (\m t -> m { minimalTracer = t })
+instance HasTracer Minimal where
+  tracerL = lens minimalTracer (\m t -> m { minimalTracer = t })
 
 instance HasServiceName Minimal where
-  serviceNameL = traceConfigL . serviceNameL
+  serviceNameL = tracerL . serviceNameL
 
 instance HasSpan Minimal where
   spanL = lens minimalCurrentSpan (\m s -> m { minimalCurrentSpan = s })
@@ -99,7 +99,7 @@ main :: IO ()
 main = do
   writeKey <- getEnv "HONEYCOMB_TEAM_WRITE_KEY"
   c <- initializeHoneycomb $ config (T.pack writeKey) (DatasetName "testing-client")
-  let traceConf = TraceConfig c "testing-wai" [] Always UUIDGenerator
+  let traceConf = Tracer c "testing-wai" [] Always UUIDGenerator
   putStrLn "Running"
   runStdoutLoggingT $ withPostgresqlConn "host=localhost port=5432 user=postgres" $ \conn -> do
     app <- liftIO $ toWaiApp $ Minimal traceConf EmptySpan conn noOpSpanErrorHandler

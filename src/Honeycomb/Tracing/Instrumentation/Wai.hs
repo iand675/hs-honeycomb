@@ -7,7 +7,7 @@ import Data.Aeson ( Value(Null, String), ToJSON(toJSON) )
 import qualified Data.Text.Encoding as T
 import Data.Typeable ( typeOf )
 import Data.Vault.Lazy ( insert, lookup, newKey, Key )
-import Honeycomb.Tracing ( Span, Trace, TraceConfig (traceConfigServiceName) )
+import Honeycomb.Tracing ( Span, Trace, Tracer (tracerServiceName) )
 import Honeycomb.Tracing.Fields
     ( typeField,
       packageField,
@@ -27,7 +27,7 @@ import Honeycomb.Tracing.Fields
       requestQueryParamsField,
       statusCodeField,
       responseContentTypeField )
-import Honeycomb.Tracing.Raw ( newTrace, closeTrace, spanning, addField, addFields )
+import Honeycomb.Tracing.Raw ( newTrace, closeTrace, spanning, addSpanField, addSpanFields )
 import Network.HTTP.Types
     ( Status(statusCode), hAccept, hContentType )
 import Network.Wai
@@ -50,21 +50,20 @@ spanKey :: Key Span
 spanKey = unsafePerformIO newKey
 {-# NOINLINE spanKey #-}
 
-
 lookupTrace :: Request -> Maybe Trace
 lookupTrace = Data.Vault.Lazy.lookup traceKey . vault
 
 lookupSpan :: Request -> Maybe Span
 lookupSpan = Data.Vault.Lazy.lookup spanKey . vault
 
-beelineMiddleware :: TraceConfig -> Middleware
+beelineMiddleware :: Tracer -> Middleware
 beelineMiddleware conf app req responder = runReaderT (do
   -- TODO inherit trace if possible
   bracket newTrace closeTrace $ \trace -> do
     -- Default to path for span name, but can be overridden
     let path = T.decodeUtf8 $ rawPathInfo req
-    spanning trace (traceConfigServiceName conf) Nothing {- <- TODO pull from headers? -} path errorHandler $ \span_ -> do
-      addFields span_ $ H.fromList
+    spanning trace (tracerServiceName conf) Nothing {- <- TODO pull from headers? -} path errorHandler $ \span_ -> do
+      addSpanFields span_ $ H.fromList
         [ (typeField, String "http_server")
         , (packageField, String "wai/warp")
         -- TODO CPP macro? VERSION_wai/VERSION_warp
@@ -102,14 +101,14 @@ beelineMiddleware conf app req responder = runReaderT (do
             -}
             }
       liftIO $ app req' $ \resp -> do
-        addFields span_ $ H.fromList 
+        addSpanFields span_ $ H.fromList 
           [ (statusCodeField, toJSON $ statusCode $ responseStatus resp)
           , (responseContentTypeField, toJSON $ fmap T.decodeUtf8 $ Prelude.lookup hContentType $ responseHeaders resp)
           ]
         responder resp) conf
   where
-    errorHandler :: Span -> SomeException -> ReaderT TraceConfig IO ()
+    errorHandler :: Span -> SomeException -> ReaderT Tracer IO ()
     errorHandler span_ err = do
-      addField span_ requestErrorField $ show $ typeOf err
-      addField span_ requestErrorDetailField $ show err
+      addSpanField span_ requestErrorField $ show $ typeOf err
+      addSpanField span_ requestErrorDetailField $ show err
       return ()

@@ -34,8 +34,8 @@ import Data.Text (Text)
 
 annotateBasics :: MonadTrace env m => Request -> (Request -> m (Response a)) -> m (Response a)
 annotateBasics req f = do
-  addField packageField ("http-conduit" :: Text)
-  addField typeField ("http_client" :: Text)
+  addSpanField packageField ("http-conduit" :: Text)
+  addSpanField typeField ("http_client" :: Text)
   addRequestFields req
   resp <- f req
   addResponseFields resp

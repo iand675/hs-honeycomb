@@ -27,7 +27,7 @@ import Data.Typeable (typeOf)
 
 
 addRequestFields :: MonadSpan env m => Request -> m ()
-addRequestFields req = addFields $ H.fromList
+addRequestFields req = addSpanFields $ H.fromList
   [ (clientRequestPathField, toJSON $ decodeUtf8 $ HTTP.path req)
   , (clientRequestMethodField, toJSON $ decodeUtf8 $ HTTP.method req)
   , (clientRequestContentTypeField, toJSON $ fmap decodeUtf8 $ lookup hContentType $ HTTP.requestHeaders req)
@@ -39,7 +39,7 @@ addRequestFields req = addFields $ H.fromList
   ]
 
 addResponseFields :: MonadSpan env m => Response a -> m ()
-addResponseFields resp = addFields $ H.fromList
+addResponseFields resp = addSpanFields $ H.fromList
   [ (clientResponseContentTypeField, toJSON $ fmap decodeUtf8 $ lookup hContentType $ responseHeaders resp)
   , (clientResponseStatusCodeField, toJSON $ statusCode $ HTTP.responseStatus resp)
   -- TODO
@@ -49,8 +49,8 @@ addResponseFields resp = addFields $ H.fromList
 -- TODO
 clientRequestErrorHandler :: MonadTrace env m => SomeException -> m ()
 clientRequestErrorHandler e = do
-  addField clientRequestErrorField $ show $ typeOf e
-  addField clientRequestErrorDetailField $ show e
+  addSpanField clientRequestErrorField $ show $ typeOf e
+  addSpanField clientRequestErrorDetailField $ show e
 
 withResponse :: MonadTrace env m => Request -> Manager -> (Response BodyReader -> m a) -> m a
 withResponse req m f = spanning "withResponse" $ do
