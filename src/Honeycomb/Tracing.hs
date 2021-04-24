@@ -32,14 +32,15 @@ import Honeycomb.Client.Internal
 import Lens.Micro
 import Data.String (IsString)
 import Lens.Micro.Mtl (view)
+import Data.Hashable (Hashable)
 
-data TraceConfig = forall sampler idGenerator. (Sampler IO sampler, TraceIdProvider idGenerator) =>
-  TraceConfig
-    { traceHoneycombClient :: HoneycombClient
-    , traceConfigServiceName :: ServiceName
-    , tracePropagationCodecs :: [ConcreteCodec ByteString]
-    , traceSampler :: sampler
-    , traceIdGenerator :: idGenerator
+data Tracer = forall sampler idGenerator. (Sampler IO sampler, TraceIdProvider idGenerator) =>
+  Tracer
+    { tracerHoneycombClient :: HoneycombClient
+    , tracerServiceName :: ServiceName
+    , tracerPropagationCodecs :: [ConcreteCodec ByteString]
+    , tracerSampler :: sampler
+    , tracerIdGenerator :: idGenerator
     }
 
 {-
@@ -56,7 +57,7 @@ fields:
 -- TODO propogation
 
 newtype ServiceName = ServiceName Text
-  deriving (Show, Eq, Ord, IsString)
+  deriving (Show, Eq, Ord, IsString, ToJSON, FromJSON, Hashable)
 
 class HasServiceName env where
   serviceNameL :: Lens' env ServiceName
@@ -64,8 +65,8 @@ class HasServiceName env where
 instance HasServiceName ServiceName where
   serviceNameL = lens id (\_ new -> new)
 
-instance HasServiceName TraceConfig where
-  serviceNameL = lens traceConfigServiceName (\c s -> c { traceConfigServiceName = s })
+instance HasServiceName Tracer where
+  serviceNameL = lens tracerServiceName (\c s -> c { tracerServiceName = s })
 
 class HasTrace env where
   traceL :: Lens' env Trace
@@ -97,14 +98,14 @@ class HasHoneycombClient env where
 instance HasHoneycombClient HoneycombClient where
   honeycombClientL = lens id (\_ new -> new)
 
-instance HasHoneycombClient TraceConfig where
-  honeycombClientL = lens traceHoneycombClient (\t c -> t { traceHoneycombClient = c })
+instance HasHoneycombClient Tracer where
+  honeycombClientL = lens tracerHoneycombClient (\t c -> t { tracerHoneycombClient = c })
 
-class HasTraceConfig env where
-  traceConfigL :: Lens' env TraceConfig
+class HasTracer env where
+  tracerL :: Lens' env Tracer
 
-instance HasTraceConfig TraceConfig where
-  traceConfigL = lens id (\_ new -> new)
+instance HasTracer Tracer where
+  tracerL = lens id (\_ new -> new)
 
 data Trace = Trace
   { traceClient :: HoneycombClient,
@@ -115,17 +116,20 @@ data Trace = Trace
     traceSpans :: IORef (HashMap SpanId Span),
     -- | Fields that are added to all spans on completion
     traceFields :: IORef (HashMap Text Value),
-    traceConfig :: TraceConfig
+    traceTracer :: Tracer
   }
 
-instance HasTraceConfig Trace where
-  traceConfigL = lens traceConfig (\t c -> t { traceConfig = c })
+instance Show Trace where
+  show Trace{..} = "Trace {traceId = " ++ show traceId ++ "}"
+
+instance HasTracer Trace where
+  tracerL = lens traceTracer (\t c -> t { traceTracer = c })
 
 data Span
   = Span
     { spanId :: SpanId,
       name :: Text,
-      service :: Text,
+      service :: ServiceName,
       startTime :: IORef Time,
       endTime :: IORef (Maybe Time),
       parentSpan :: Maybe SpanId,
@@ -133,3 +137,18 @@ data Span
       fields :: IORef (HashMap Text Value)
     }
   | EmptySpan
+
+instance Show Span where
+  show Span{..} = 
+    "Span {spanId = " ++ 
+    show spanId ++ 
+    ", name = " ++ 
+    show name ++ 
+    ", service = " ++ 
+    show service ++
+    ", parentSpan = " ++
+    show parentSpan ++
+    ", trace = " ++ 
+    show trace ++ 
+    "}"
+  show EmptySpan = "EmptySpan"
