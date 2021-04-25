@@ -5,7 +5,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Honeycomb.Tracing where
 
@@ -73,6 +72,9 @@ class HasTrace env where
 
 instance HasTrace Trace where
   traceL = lens id (\_ new -> new)
+
+instance HasTrace Span where
+  traceL = lens trace (\s new -> s { trace = new })
 
 class HasSpan env where
   spanL :: Lens' env Span
