@@ -29,9 +29,9 @@ newTrace =
     <*> liftIO (newIORef mempty)
     <*> view tracerL
 
-makeEvent :: HashMap Text Value -> Span -> IO (Maybe Event)
+makeEvent :: MonadIO m => HashMap Text Value -> Span -> m (Maybe Event)
 makeEvent _ EmptySpan = pure Nothing
-makeEvent traceFields Span{..} = do
+makeEvent traceFields Span{..} = liftIO $ do
   spanFields <- readIORef fields
   startT <- readIORef startTime
   endT <- fromMaybe startT <$> readIORef endTime
@@ -50,16 +50,16 @@ makeEvent traceFields Span{..} = do
     , _timestamp = Just startT
     }
 
-closeTrace :: MonadIO m => Trace -> m ()
-closeTrace t = liftIO $ do
+closeTrace :: MonadHoneycomb env m => Trace -> m ()
+closeTrace t = do
   fs <- readIORef $ traceFields t
   r <- fmap H.elems $ readIORef $ traceSpans t
   allSpansAreClosed <- all isJust <$> mapM (readIORef . endTime) r
   unless allSpansAreClosed $ do
     -- TODO better warning or something.
-    putStrLn "Warning: some spans for trace are not closed prior to sending."
+    liftIO $ putStrLn "Warning: some spans for trace are not closed prior to sending."
   postprocessedEvents <- mapM (_postprocessEvent <=< makeEvent fs) r
-  mapM_ (send (traceClient t)) $ catMaybes $ catMaybes postprocessedEvents
+  mapM_ send $ catMaybes $ catMaybes postprocessedEvents
   where
     -- TODO
     _postprocessEvent = pure . Just

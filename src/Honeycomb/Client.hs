@@ -1,5 +1,11 @@
 {-# LANGUAGE RecordWildCards #-}
-module Honeycomb.Client where
+module Honeycomb.Client
+  ( initializeHoneycomb
+  , shutdownHoneycomb
+  , event
+  , Event(..)
+  , send
+  ) where
 
 import Control.Applicative
 import Control.Monad
@@ -15,29 +21,29 @@ import qualified Honeycomb.API.Types as API
 import Network.HTTP.Client.TLS
 import UnliftIO.Async
 import UnliftIO
+import Control.Monad.Reader
+import Lens.Micro.Mtl (view)
+import Lens.Micro ((%~))
 
 newtype Worker = Worker
   { worker :: Async ()
   }
 
-initializeHoneycomb :: MonadUnliftIO m => Config -> m HoneycombClient
-initializeHoneycomb conf = do
+initializeHoneycomb :: MonadIO m => Config -> m HoneycombClient
+initializeHoneycomb conf = liftIO $ do
   rand <- liftIO createSystemRandom
-  m <- liftIO getGlobalManager
   buf <- liftIO $ new 32768 -- TODO allow configuration
   dummyWorker <- async $ pure ()
-  let client = HoneycombClient m conf rand buf dummyWorker
+  let client = HoneycombClient conf rand buf dummyWorker
   innerWorker <- async $ forever $ do
     vec <- takeBatchBlocking buf
     -- TODO handle dispatch to multiple places, etc.
     -- TODO handle sample rate
     -- TODO log errors or something
-    resp <- mapM (API.sendEvent client (defaultDataset conf))
+    resp <- flip runReaderT client $ mapM API.sendEvent
       $ fmap (\Event{..} -> API.Event Nothing _timestamp _fields) vec
     pure ()
   pure $ client { clientWorker = innerWorker }
-  
-
 
 shutdownHoneycomb :: MonadIO m => HoneycombClient -> m ()
 shutdownHoneycomb = cancel . clientWorker
@@ -46,8 +52,8 @@ event :: Event
 event = Event
   { _fields = S.empty
   , _teamWriteKey = Nothing
-  , _dataset = Nothing 
-  , _apiHost = Nothing 
+  , _dataset = Nothing
+  , _apiHost = Nothing
   , _sampleRate = Nothing
   , _timestamp = Nothing
   }
@@ -55,8 +61,9 @@ event = Event
 class ToEventField a where
 class ToEventFields a where
 
-send :: MonadIO m => HoneycombClient -> Event -> m ()
-send c@HoneycombClient{..} e = do
+send :: (MonadHoneycomb env m) => Event -> m ()
+send e = do
+  c@HoneycombClient{..} <- view honeycombClientL
   let specifiedSampleRate = _sampleRate e <|> sampleRate clientConfig
   (shouldSend, _sampleVal) <- case specifiedSampleRate of
     Nothing -> pure (True, 0)
@@ -64,17 +71,15 @@ send c@HoneycombClient{..} e = do
     Just n -> liftIO $ do
       x <- uniformR (1, n) clientGen
       pure (1 == x, x)
-  
   when shouldSend $ do
     let event_ = API.Event specifiedSampleRate (_timestamp e) (_fields e)
-    let blockingEvent = API.sendEvent
-          (c { clientConfig = replaceHost $ replaceWriteKey clientConfig })
-          (fromMaybe (defaultDataset clientConfig) $ _dataset e) 
-          event_
-    liftIO $ if sendBlocking clientConfig
-      then blockingEvent
-      -- TODO this is a wrong implementation
-      else push e clientEventBuffer
+    let localOptions = honeycombClientL %~ (\c -> c { clientConfig = replaceDataset $ replaceHost $ replaceWriteKey clientConfig })
+    let blockingEvent = local localOptions $ API.sendEvent event_
+    if sendBlocking clientConfig
+    then blockingEvent
+    -- TODO this is a wrong implementation
+    else push e clientEventBuffer
   where
+    replaceDataset c' = maybe c' (\ds -> c' { defaultDataset = ds }) $ _dataset e
     replaceHost c' = maybe c' (\h -> c' { apiHost = h }) $ _apiHost e
     replaceWriteKey c' = maybe c' (\k -> c' { teamWritekey = k }) $ _teamWriteKey e

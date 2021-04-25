@@ -7,7 +7,11 @@ module Honeycomb.Tracing.Instrumentation.Yesod where
 import qualified Data.ByteString.Char8 as C
 import Data.Char (toLower)
 import Data.Typeable ()
-import Honeycomb.Tracing hiding (addSpanField, addSpanFields)-- ( Span, addField, HasTraceConfig (getTraceConfig), HasSpan )
+import Honeycomb.Tracing
+    ( HasServiceName(..),
+      HasSpan(..),
+      HasSpanErrorHandler(..),
+      HasTracer(..) )-- ( Span, addField, HasTraceConfig (getTraceConfig), HasSpan )
 import Honeycomb.Tracing.Fields ( spanNameField )
 import Honeycomb.Tracing.Instrumentation.Wai (lookupSpan)
 import Honeycomb.Types ()

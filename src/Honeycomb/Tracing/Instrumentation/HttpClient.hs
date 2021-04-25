@@ -24,6 +24,7 @@ import UnliftIO (SomeException, MonadUnliftIO (withRunInIO))
 import qualified Data.ByteString.Lazy as L
 import Network.HTTP.Types (statusCode)
 import Data.Typeable (typeOf)
+import Control.Monad.Reader
 
 
 addRequestFields :: MonadSpan env m => Request -> m ()
@@ -47,12 +48,12 @@ addResponseFields resp = addSpanFields $ H.fromList
   ]
 
 -- TODO
-clientRequestErrorHandler :: MonadTrace env m => SomeException -> m ()
+clientRequestErrorHandler :: (MonadTrace env m) => SomeException -> m ()
 clientRequestErrorHandler e = do
   addSpanField clientRequestErrorField $ show $ typeOf e
   addSpanField clientRequestErrorDetailField $ show e
 
-withResponse :: MonadTrace env m => Request -> Manager -> (Response BodyReader -> m a) -> m a
+withResponse :: (MonadUnliftIO m, MonadTrace env m) => Request -> Manager -> (Response BodyReader -> m a) -> m a
 withResponse req m f = spanning "withResponse" $ do
   addRequestFields req
   withRunInIO $ \runInIO -> 
@@ -60,26 +61,26 @@ withResponse req m f = spanning "withResponse" $ do
       addResponseFields resp
       f resp
 
-httpLbs :: MonadTrace env m => Request -> Manager -> m (Response L.ByteString) 
-httpLbs req m = spanning "httpLbs" $ do
+httpLbs :: (MonadTrace env m) => Request -> Manager -> m (Response L.ByteString) 
+httpLbs req m = spanningIO "httpLbs" $ do
   addRequestFields req
   resp <- liftIO $ HTTP.httpLbs req m
   addResponseFields resp
   pure resp
 
 httpNoBody :: (MonadTrace env m) => Request -> Manager -> m (Response ()) 
-httpNoBody req m = spanning "httpNoBody" $ do
+httpNoBody req m = spanningIO "httpNoBody" $ do
   addRequestFields req
   resp <- liftIO $ HTTP.httpNoBody req m
   addResponseFields resp
   pure resp
 
 responseOpen :: (MonadTrace env m) => Request -> Manager -> m (Response BodyReader)
-responseOpen req m = spanning "responseOpen" $ do
+responseOpen req m = spanningIO "responseOpen" $ do
   addRequestFields req
   resp <- liftIO $ HTTP.responseOpen req m
   addResponseFields resp
   pure resp
 
 responseClose :: (MonadTrace env m) => Response a -> m ()
-responseClose resp = spanning "responseClose" $ liftIO $ HTTP.responseClose resp
+responseClose resp = spanningIO "responseClose" $ liftIO $ HTTP.responseClose resp

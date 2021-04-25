@@ -42,23 +42,23 @@ annotateBasics req f = do
   pure resp
 
 httpBS :: MonadTrace env m => Request -> m (Response Strict.ByteString)
-httpBS req = spanning "httpBS" $ do
+httpBS req = spanningIO "httpBS" $ do
   annotateBasics req Simple.httpBS
 
 httpLBS :: MonadTrace env m => Request -> m (Response Lazy.ByteString)
-httpLBS req = spanning "httpLBS" $ do
+httpLBS req = spanningIO "httpLBS" $ do
   annotateBasics req Simple.httpLBS
 
 httpNoBody :: MonadTrace env m => Request -> m (Response ())
-httpNoBody req = spanning "httpNoBody" $ do
+httpNoBody req = spanningIO "httpNoBody" $ do
   annotateBasics req Simple.httpNoBody
 
 httpJSON :: (MonadTrace env m, FromJSON a) => Request -> m (Response a)
-httpJSON req = spanning "httpJSON" $ do
+httpJSON req = spanningIO "httpJSON" $ do
   annotateBasics req Simple.httpJSON
 
 httpJSONEither :: (MonadTrace env m, FromJSON a) => Request -> m (Response (Either JSONException a))
-httpJSONEither req = spanning "httpJSONEither" $ do
+httpJSONEither req = spanningIO "httpJSONEither" $ do
   annotateBasics req Simple.httpJSONEither
 
 -- TODO

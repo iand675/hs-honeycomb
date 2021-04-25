@@ -4,6 +4,7 @@ module Honeycomb.Types where
 import Data.ByteString.Char8 (ByteString)
 import Data.Text (Text)
 import Data.Word
+import Lens.Micro
 
 newtype DatasetName = DatasetName { fromDatasetName :: Text }
 
@@ -20,5 +21,14 @@ data Config = Config
   , customUserAgent :: ByteString
   }
 
+class HasConfig a where
+  configL :: Lens' a Config
+
+instance HasConfig Config where
+  configL = lens id (\_ new -> new)
+
+-- | Smart constructor with sane defaults for Honeycomb config options.
+--
+-- @since 0.0.1
 config :: Text -> DatasetName -> Config
 config k ds = Config k ds "api.honeycomb.io" Nothing 0 0 0 False False ""

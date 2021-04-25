@@ -33,7 +33,7 @@ wrapConnection Span{..} conn = do
               trace
               (tracerServiceName $ traceTracer trace)
               (Just spanId)
-              "execute"
+              "db.query"
               (\child (e :: SomeException) -> do
                 addSpanField child databaseError $ show $ typeOf e
                 addSpanField child databaseErrorDetails $ show e
@@ -50,7 +50,7 @@ wrapConnection Span{..} conn = do
                     trace
                     (tracerServiceName $ traceTracer trace)
                     (Just spanId)
-                    "query") closeSpan
+                    "db.query") closeSpan
               annotateBasics child conn
               addSpanField child databaseQueryField t
               addSpanField child databaseQueryParametersField $ show ps
@@ -71,7 +71,7 @@ wrapConnection Span{..} conn = do
         trace
         (tracerServiceName $ traceTracer trace)
         (Just spanId)
-        "begin"
+        "db.transaction.begin"
         (\child (e :: SomeException) -> do
           addSpanField child databaseError $ show $ typeOf e
           addSpanField child databaseErrorDetails $ show e
@@ -85,7 +85,7 @@ wrapConnection Span{..} conn = do
         trace
         (tracerServiceName $ traceTracer trace)
         (Just spanId)
-        "commit"
+        "db.transaction.commit"
         (\child (e :: SomeException) -> do
           addSpanField child databaseError $ show $ typeOf e
           addSpanField child databaseErrorDetails $ show e
@@ -99,7 +99,7 @@ wrapConnection Span{..} conn = do
         trace
         (tracerServiceName $ traceTracer trace)
         (Just spanId)
-        "rollback"
+        "db.transaction.rollback"
         (\child (e :: SomeException) -> do
           addSpanField child databaseError $ show $ typeOf e
           addSpanField child databaseErrorDetails $ show e
@@ -113,5 +113,5 @@ annotateBasics :: MonadIO m => Span -> SqlBackend -> m ()
 annotateBasics s conn = addSpanFields s $ H.fromList
   [ (packageField, String "persistent/esqueleto")
   , (serviceNameField, String $ connRDBMS conn)
-  -- , (typeField, String ("database/" <> connRDBMS conn))
+  , (typeField, String "db")
   ]

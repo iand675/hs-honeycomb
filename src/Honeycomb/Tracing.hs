@@ -91,13 +91,6 @@ class HasSpanErrorHandler env where
 instance HasSpanErrorHandler SpanErrorHandler where
   spanErrorHandlerL = lens id (\_ new -> new)
 
--- TODO lensify these
-class HasHoneycombClient env where
-  honeycombClientL :: Lens' env HoneycombClient
-
-instance HasHoneycombClient HoneycombClient where
-  honeycombClientL = lens id (\_ new -> new)
-
 instance HasHoneycombClient Tracer where
   honeycombClientL = lens tracerHoneycombClient (\t c -> t { tracerHoneycombClient = c })
 

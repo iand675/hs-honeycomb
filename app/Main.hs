@@ -9,9 +9,11 @@ module Main where
 import Control.Monad.Logger ( runStdoutLoggingT )
 import Control.Monad.Reader
     ( MonadIO(liftIO), ReaderT(runReaderT) )
+import Data.Aeson
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.Persist.Sql ( rawSql, Single, SqlBackend )
+import qualified Data.HashMap.Strict as H
 import Honeycomb.Client ( initializeHoneycomb )
 import Honeycomb.Tracing
     ( noOpSpanErrorHandler,
@@ -22,7 +24,7 @@ import Honeycomb.Tracing
       Span(EmptySpan),
       SpanErrorHandler,
       Tracer(Tracer) )
-import Honeycomb.Tracing.Monad ( spanning )
+import Honeycomb.Tracing.Monad ( asService, spanning, addEvent )
 import Honeycomb.Types ( config, DatasetName(DatasetName) )
 import Honeycomb.Tracing.Sampling ( Always(Always) )
 import Honeycomb.Tracing.Ids.UUIDTraceIdProvider
@@ -50,6 +52,8 @@ import Database.Persist.Postgresql
     ( withPostgresqlConn, rawSql, Single, SqlBackend )
 import Lens.Micro (lens)
 import System.Environment ( getEnv )
+import Chronos (now)
+import Honeycomb.API.Markers
 
 -- | This is my data type. There are many like it, but this one is mine.
 data Minimal = Minimal
@@ -90,8 +94,10 @@ getRootR :: Handler Text
 getRootR = do
   (result :: [Single Text]) <- runDB $ rawSql "select usename from pg_catalog.pg_user" []
 
-  spanning "getGoogle" $ do
+  asService "googleFetcher" $ spanning "getGoogle" $ do
+    addEvent "Oh hai" H.empty
     httpNoBody "https://google.com"
+    addEvent "Oh bye" H.empty
 
   pure ("Hello, " <> T.pack (show result))
 
@@ -101,6 +107,13 @@ main = do
   c <- initializeHoneycomb $ config (T.pack writeKey) (DatasetName "testing-client")
   let traceConf = Tracer c "testing-wai" [] Always UUIDGenerator
   putStrLn "Running"
+  t <- now
+  let makeMarker = createMarker 
+        (emptyMarker 
+          { startTime = Just t
+          , endTime = Just t
+          , message = Just "Starting minimal app", markerType = Just "app.launch"}) 
+  runReaderT makeMarker c
   runStdoutLoggingT $ withPostgresqlConn "host=localhost port=5432 user=postgres" $ \conn -> do
     app <- liftIO $ toWaiApp $ Minimal traceConf EmptySpan conn noOpSpanErrorHandler
     liftIO $ runEnv 3000 $ Wai.beelineMiddleware traceConf app

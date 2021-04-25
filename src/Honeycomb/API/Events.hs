@@ -16,8 +16,11 @@ import Data.Vector (Vector)
 import Honeycomb.Client.Internal hiding (Event)
 import Honeycomb.Types
 import Honeycomb.API.Types
-import Network.HTTP.Client
+import Network.HTTP.Simple
 import Network.HTTP.Types
+import Lens.Micro
+import Control.Monad.Reader (MonadReader)
+import Lens.Micro.Mtl (view)
 
 
 data MalformedJSONResponse = MalformedJSONResponse
@@ -38,10 +41,12 @@ data FailureResponse
   deriving stock (Show, Typeable)
   deriving anyclass (Exception)
 
-sendEvent :: MonadIO m => HoneycombClient -> DatasetName -> Event -> m ()
-sendEvent client ds e = liftIO $ do
-  r <- post httpLbs client ["1", "events", fromDatasetName ds] hs $ eventData e
-  case (statusCode $ responseStatus r, responseBody r) of
+sendEvent :: (MonadHoneycomb client m) => Event -> m ()
+sendEvent e = do
+  client <- view honeycombClientL
+  let ds = client ^. configL . to defaultDataset
+  r <- post httpLBS ["1", "events", fromDatasetName ds] hs $ eventData e
+  case (statusCode $ getResponseStatus r, getResponseBody r) of
     (400, "unknown API key - check your credentials") -> throw UnknownApiKey
     (400, "request body is too large") -> throw RequestBodyTooLarge
     (400, "request body is malformed and cannot be read as JSON") -> throw MalformedRequestBody
@@ -49,8 +54,7 @@ sendEvent client ds e = liftIO $ do
     (429, "event dropped due to administrative blacklist") -> throw EventDroppedDueToBlacklist
     (429, "request dropped due to rate limiting") -> throw RequestDroppedDueToRateLimiting
     (200, _) -> pure ()
-    (_, str) -> throw $ UnrecognizedError (responseStatus r) str
-
+    (_, str) -> throw $ UnrecognizedError (getResponseStatus r) str
   where
     hs = catMaybes
       [ (\d -> ("X-Honeycomb-Event-Time", T.encodeUtf8 $ encodeRFC3339 $ timeToDatetime d)) <$> eventTimestamp e
@@ -68,8 +72,8 @@ Size limitations may be addressed by gzip ping request bodies. Be sure to set th
 -}
 newtype BatchOptions = UseGZip Bool
 
-sendBatchedEvents :: MonadIO m => HoneycombClient -> DatasetName -> Vector Event -> m (Vector BatchResponse)
-sendBatchedEvents c = sendBatchedEvents_ c (UseGZip False)
+sendBatchedEvents :: (MonadHoneycomb client m) => Vector Event -> m (Vector BatchResponse)
+sendBatchedEvents = sendBatchedEvents_ (UseGZip False)
 
 newtype BatchResponse = BatchResponse { batchResponseStatus :: Int }
   deriving (Show)
@@ -77,9 +81,10 @@ newtype BatchResponse = BatchResponse { batchResponseStatus :: Int }
 instance FromJSON BatchResponse where
   parseJSON = withObject "BatchResponse" $ \o -> BatchResponse <$> (o .: "status")
 
-sendBatchedEvents_ :: MonadIO m => HoneycombClient -> BatchOptions -> DatasetName -> Vector Event -> m (Vector BatchResponse)
-sendBatchedEvents_ c _ ds events = liftIO $ do
-  r <- post httpLbs c ["1", "batch", fromDatasetName ds] [] events
-  case responseBody $ decodeJSON r of
-    Left err -> throw $ MalformedJSONResponse err (responseBody r)
+sendBatchedEvents_ :: (MonadHoneycomb client m) => BatchOptions -> Vector Event -> m (Vector BatchResponse)
+sendBatchedEvents_ _ events = do
+  config <- view (honeycombClientL . configL)
+  r <- post httpLBS ["1", "batch", fromDatasetName $ defaultDataset config] [] events
+  case getResponseBody $ decodeJSON r of
+    Left err -> throw $ MalformedJSONResponse err (getResponseBody r)
     Right ok -> pure ok

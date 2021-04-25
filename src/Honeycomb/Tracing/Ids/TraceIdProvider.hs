@@ -1,5 +1,4 @@
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Honeycomb.Tracing.Ids.TraceIdProvider where
 import Data.Text (Text)
 import Data.Hashable

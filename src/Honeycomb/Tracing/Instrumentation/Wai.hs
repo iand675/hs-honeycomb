@@ -1,9 +1,10 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Honeycomb.Tracing.Instrumentation.Wai where
 
 import Control.Monad.Reader
     ( MonadIO(liftIO), ReaderT(runReaderT) )
-import Data.Aeson ( Value(Null, String), ToJSON(toJSON) )
+import Data.Aeson
 import qualified Data.Text.Encoding as T
 import Data.Typeable ( typeOf )
 import Data.Vault.Lazy ( insert, lookup, newKey, Key )
@@ -26,7 +27,7 @@ import Honeycomb.Tracing.Fields
       requestAcceptField,
       requestQueryParamsField,
       statusCodeField,
-      responseContentTypeField )
+      responseContentTypeField, packageVersionField )
 import Honeycomb.Tracing.Raw ( newTrace, closeTrace, spanning, addSpanField, addSpanFields )
 import Network.HTTP.Types
     ( Status(statusCode), hAccept, hContentType )
@@ -41,6 +42,7 @@ import Network.Wai
 import System.IO.Unsafe ( unsafePerformIO )
 import qualified Data.HashMap.Strict as H
 import UnliftIO ( SomeException, bracket )
+import Data.Text (Text)
 
 traceKey :: Key Trace
 traceKey = unsafePerformIO newKey
@@ -67,7 +69,14 @@ beelineMiddleware conf app req responder = runReaderT (do
         [ (typeField, String "http_server")
         , (packageField, String "wai/warp")
         -- TODO CPP macro? VERSION_wai/VERSION_warp
-        -- , (packageVersionField, )
+        {-
+        , ( packageVersionField
+          , object 
+            [ "wai" .= ("VERSION_wai" :: Text)
+            , "warp" .= ("VERSION_warp" :: Text)
+            ]
+          )
+        -}
         , (requestHostField, toJSON $ T.decodeUtf8 <$> requestHeaderHost req)
         , (requestMethodField, toJSON $ T.decodeUtf8 $ requestMethod req)
         , (requestHttpVersionField, toJSON $ show $ httpVersion req)

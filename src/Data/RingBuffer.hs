@@ -91,8 +91,8 @@ full :: (VGM.MVector (VG.Mutable v) a, (WriteOps (WriterVar writeMode))) => Ring
 full buf = (VGM.length (ringBuffer buf) ==) <$> size buf
 
 -- | Add an item to the end of the ring
-push :: MonadUnliftIO m => (VG.Vector v a, (WriteOps (WriterVar writeMode))) => a -> RingBuffer writeMode v a -> m ()
-push x rb@RingBuffer{..} = mask_ $ do
+push :: MonadIO m => (VG.Vector v a, (WriteOps (WriterVar writeMode))) => a -> RingBuffer writeMode v a -> m ()
+push x rb@RingBuffer{..} = liftIO $ mask_ $ do
     writeCounter <- atomically $ do
         isFull <- full rb
         when isFull retry
@@ -102,8 +102,8 @@ push x rb@RingBuffer{..} = mask_ $ do
     pure ()
 
 -- | Add an item to the end of the ring
-tryPush :: MonadUnliftIO m => (VG.Vector v a, (WriteOps (WriterVar writeMode))) => a -> RingBuffer writeMode v a -> m Bool
-tryPush x rb@RingBuffer{..} = mask_ $ do
+tryPush :: MonadIO m => (VG.Vector v a, (WriteOps (WriterVar writeMode))) => a -> RingBuffer writeMode v a -> m Bool
+tryPush x rb@RingBuffer{..} = liftIO $ mask_ $ do
     join $ atomically $ do
         isFull <- full rb
         writeCounter <- takeWriterVarValue ringWrite
