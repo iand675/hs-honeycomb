@@ -16,7 +16,6 @@ import Network.HTTP.Client
 import System.Random.MWC
 import Honeycomb.Types
 import Data.Vector (Vector)
-import Data.RingBuffer
 import Network.HTTP.Types
 import qualified Data.Text.Encoding as T
 import qualified Data.Text as T
@@ -25,13 +24,14 @@ import Lens.Micro
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader.Class
 import Lens.Micro.Mtl (view)
+import UnliftIO.STM (TBQueue)
 
 data HoneycombClient = HoneycombClient
   { clientConfig :: Config
   , clientGen :: GenIO
   -- | Subject to change
   -- TODO this needs to respect dispatching to custom host/dataset/writekey/etc.
-  , clientEventBuffer :: RingBuffer 'MultiWriter Vector Event
+  , clientEventBuffer :: TBQueue Event
   -- , clientQueueMap :: Map ThreadId 
   , clientWorker :: Async ()
   }

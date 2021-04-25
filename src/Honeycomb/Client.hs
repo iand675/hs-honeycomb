@@ -14,7 +14,6 @@ import Data.HashMap.Strict as S
 import Data.Maybe
 import System.Random.MWC
 import Honeycomb.Types
-import Data.RingBuffer
 import Honeycomb.Client.Internal
 import qualified Honeycomb.API.Events as API
 import qualified Honeycomb.API.Types as API
@@ -24,6 +23,8 @@ import UnliftIO
 import Control.Monad.Reader
 import Lens.Micro.Mtl (view)
 import Lens.Micro ((%~))
+import Control.Concurrent.STM (retry)
+import Control.Concurrent.STM.TBQueue hiding (newTBQueueIO)
 
 newtype Worker = Worker
   { worker :: Async ()
@@ -32,11 +33,14 @@ newtype Worker = Worker
 initializeHoneycomb :: MonadIO m => Config -> m HoneycombClient
 initializeHoneycomb conf = liftIO $ do
   rand <- liftIO createSystemRandom
-  buf <- liftIO $ new 32768 -- TODO allow configuration
+  buf <- liftIO $ newTBQueueIO 32768 -- TODO allow configuration
   dummyWorker <- async $ pure ()
   let client = HoneycombClient conf rand buf dummyWorker
   innerWorker <- async $ forever $ do
-    vec <- takeBatchBlocking buf
+    vec <- atomically $ do
+      q <- flushTBQueue buf
+      when (Prelude.null q) retry
+      pure q
     -- TODO handle dispatch to multiple places, etc.
     -- TODO handle sample rate
     -- TODO log errors or something
@@ -78,7 +82,7 @@ send e = do
     if sendBlocking clientConfig
     then blockingEvent
     -- TODO this is a wrong implementation
-    else push e clientEventBuffer
+    else atomically $ writeTBQueue clientEventBuffer e
   where
     replaceDataset c' = maybe c' (\ds -> c' { defaultDataset = ds }) $ _dataset e
     replaceHost c' = maybe c' (\h -> c' { apiHost = h }) $ _apiHost e
