@@ -23,3 +23,8 @@ class PropagationCodec a where
   getName :: a -> Text
   decode :: a -> [Header] -> PropagationContext
   encode :: PropagationContext -> Maybe a
+
+instance PropagationCodec () where
+  getName () = "()"
+  decode () _ = EmptyContext
+  encode _ = Nothing

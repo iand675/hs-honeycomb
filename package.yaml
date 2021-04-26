@@ -47,6 +47,7 @@ dependencies:
 - auto-update
 - microlens
 - microlens-mtl
+- mmorph
 # TODO split these out
 - conduit
 - warp

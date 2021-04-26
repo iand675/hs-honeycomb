@@ -2,7 +2,14 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-module Honeycomb.API.Events where
+module Honeycomb.API.Events
+  ( Event(..)
+  , sendEvent
+  , sendBatchedEvents
+  , sendBatchedEvents'
+  , BatchResponse(..)
+  , BatchOptions(..)
+  ) where
 import Chronos ( timeToDatetime )
 import Control.Exception
 import Data.Aeson
@@ -70,10 +77,12 @@ The maximum number of distinct columns (fields) allowed per event is 2000.
 
 Size limitations may be addressed by gzip ping request bodies. Be sure to set the Content-Encoding: gzip
 -}
-newtype BatchOptions = UseGZip Bool
+newtype BatchOptions = BatchOptions 
+  { useGZip :: Bool
+  } deriving (Show, Read)
 
 sendBatchedEvents :: (MonadHoneycomb client m) => Vector Event -> m (Vector BatchResponse)
-sendBatchedEvents = sendBatchedEvents_ (UseGZip False)
+sendBatchedEvents = sendBatchedEvents' (BatchOptions False)
 
 newtype BatchResponse = BatchResponse { batchResponseStatus :: Int }
   deriving (Show)
@@ -81,8 +90,8 @@ newtype BatchResponse = BatchResponse { batchResponseStatus :: Int }
 instance FromJSON BatchResponse where
   parseJSON = withObject "BatchResponse" $ \o -> BatchResponse <$> (o .: "status")
 
-sendBatchedEvents_ :: (MonadHoneycomb client m) => BatchOptions -> Vector Event -> m (Vector BatchResponse)
-sendBatchedEvents_ _ events = do
+sendBatchedEvents' :: (MonadHoneycomb client m) => BatchOptions -> Vector Event -> m (Vector BatchResponse)
+sendBatchedEvents' _ events = do
   config <- view (honeycombClientL . configL)
   r <- post httpLBS ["1", "batch", fromDatasetName $ defaultDataset config] [] events
   case getResponseBody $ decodeJSON r of

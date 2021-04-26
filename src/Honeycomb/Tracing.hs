@@ -147,3 +147,24 @@ instance Show Span where
     show trace ++ 
     "}"
   show EmptySpan = "EmptySpan"
+
+-- | A data type that provides all of the necessary functionality to trace things
+-- via 'spanning'
+data SimpleTraceContext = SimpleTraceContext
+  { stcSvc :: ServiceName
+  , stcTracer :: Tracer
+  , stcSpan :: Span
+  , stcErrorHandler :: SpanErrorHandler
+  }
+
+instance HasServiceName SimpleTraceContext where
+  serviceNameL = lens stcSvc (\c s -> c { stcSvc = s })
+instance HasTracer SimpleTraceContext where
+  tracerL = lens stcTracer (\c t -> c { stcTracer = t })
+instance HasSpan SimpleTraceContext where
+  spanL = lens stcSpan (\c s -> c { stcSpan = s })
+instance HasSpanErrorHandler SimpleTraceContext where
+  spanErrorHandlerL = lens stcErrorHandler (\c e -> c { stcErrorHandler = e })
+
+asSimpleTraceContext :: (HasSpanErrorHandler env, HasServiceName env, HasTracer env, HasSpan env) => env -> SimpleTraceContext
+asSimpleTraceContext x = SimpleTraceContext (x ^. serviceNameL) (x ^. tracerL) (x ^. spanL) (x ^. spanErrorHandlerL)

@@ -5,6 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Honeycomb.Tracing.Monad where
 import Control.Monad.IO.Class
+import Control.Monad.Morph
 import Data.Aeson
 import Data.Text (Text)
 import Data.HashMap.Strict (HashMap)
@@ -87,6 +88,17 @@ spanningIO ::
   -> ReaderT env IO a 
   -> m a
 spanningIO name_ = spanning' name_ (\action -> ask >>= \env -> liftIO $ runReaderT action env)
+
+-- | Useful for things like persistent's usage of runDB placing the trace monad a level down in the reader stack.
+spanningLifted :: (MonadTrace env m, MonadTrans t, MFunctor t, MonadUnliftIO m, MonadUnliftIO (t m), HasSpanErrorHandler env) => Text -> t m a -> t m a
+spanningLifted name_ n = do
+  svc <- lift askServiceName
+  span_ <- lift askSpan
+  errorHandler <- lift askErrorHandler
+  case errorHandler of
+    SpanErrorHandler errF -> do
+      Raw.spanningLifted (trace span_) svc (Just $ spanId span_) name_ (\s e -> liftIO $ errF s e) $ \s -> do
+        hoist (localSpan (const s)) n
 
 addLink :: (MonadTrace env m) => Text -> Raw.Link -> HashMap Text Value -> m ()
 addLink name_ l fs = do

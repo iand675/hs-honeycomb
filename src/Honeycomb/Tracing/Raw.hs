@@ -15,9 +15,13 @@ import Data.Text (Text)
 import Honeycomb.Client.Internal
 import Honeycomb.Tracing
 import Honeycomb.Tracing.Ids.TraceIdProvider
+import Lens.Micro hiding (view)
 import Lens.Micro.Mtl
 import Honeycomb.Client
 import Honeycomb.Tracing.Fields
+import Data.Word
+import Control.Monad.Trans (lift)
+import Conduit (MonadTrans)
 
 newTrace :: (MonadIO m, MonadReader r m, HasTracer r) => m Trace
 newTrace =
@@ -28,6 +32,10 @@ newTrace =
     <*> liftIO (newIORef mempty)
     <*> liftIO (newIORef mempty)
     <*> view tracerL
+
+setSampleRate :: (MonadIO m, HasTrace t) => t -> Word64 -> m ()
+setSampleRate t x = do
+  writeIORef (t ^. traceL . to traceSample) (Just x)
 
 makeEvent :: MonadIO m => HashMap Text Value -> Span -> m (Maybe Event)
 makeEvent _ EmptySpan = pure Nothing
@@ -105,6 +113,20 @@ spanning ::
   m a
 spanning t svc pid n errorHandler f = bracket (newSpan t svc pid n) closeSpan $ \s -> do
   handle (\e -> errorHandler s e *> throwIO e) $ f s
+
+spanningLifted ::
+  (MonadTrans t, MonadUnliftIO m, MonadUnliftIO (t m), MonadReader r m, HasTracer r, Exception e) =>
+  Trace ->
+  ServiceName ->
+  Maybe SpanId ->
+  Text ->
+  -- | Annotate spans with specific exceptions
+  (Span -> e -> t m ()) ->
+  (Span -> t m a) ->
+  t m a
+spanningLifted t svc pid n errorHandler f = bracket (lift $ newSpan t svc pid n) closeSpan $ \s -> do
+  handle (\e -> errorHandler s e *> throwIO e) $ f s
+
 
 addTraceField :: (MonadIO m, ToJSON a) => Trace -> Text -> a -> m ()
 addTraceField trace fieldName x = modifyIORef' (traceFields trace) (H.insert fieldName $ toJSON x)
