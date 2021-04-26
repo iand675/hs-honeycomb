@@ -22,7 +22,7 @@ import UnliftIO.Async
 import UnliftIO
 import Control.Monad.Reader
 import Lens.Micro.Mtl (view)
-import Lens.Micro ((%~))
+import Lens.Micro ((%~), (^.), (&))
 import Control.Concurrent.STM (retry)
 import Control.Concurrent.STM.TBQueue hiding (newTBQueueIO)
 
@@ -65,9 +65,9 @@ event = Event
 class ToEventField a where
 class ToEventFields a where
 
-send :: (MonadHoneycomb env m) => Event -> m ()
-send e = do
-  c@HoneycombClient{..} <- view honeycombClientL
+send :: (MonadIO m, HasHoneycombClient env) => env -> Event -> m ()
+send hasC e = do
+  let c@HoneycombClient{..} = hasC ^. honeycombClientL
   let specifiedSampleRate = _sampleRate e <|> sampleRate clientConfig
   (shouldSend, _sampleVal) <- case specifiedSampleRate of
     Nothing -> pure (True, 0)
@@ -78,7 +78,7 @@ send e = do
   when shouldSend $ do
     let event_ = API.Event specifiedSampleRate (_timestamp e) (_fields e)
     let localOptions = honeycombClientL %~ (\c -> c { clientConfig = replaceDataset $ replaceHost $ replaceWriteKey clientConfig })
-    let blockingEvent = local localOptions $ API.sendEvent event_
+    let blockingEvent = runReaderT (API.sendEvent event_) (c & localOptions)
     if sendBlocking clientConfig
     then blockingEvent
     -- TODO this is a wrong implementation

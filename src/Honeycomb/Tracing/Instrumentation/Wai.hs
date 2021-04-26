@@ -8,7 +8,7 @@ import Data.Aeson
 import qualified Data.Text.Encoding as T
 import Data.Typeable ( typeOf )
 import Data.Vault.Lazy ( insert, lookup, newKey, Key )
-import Honeycomb.Tracing ( Span, Trace, Tracer (tracerServiceName) )
+import Honeycomb.Tracing ( MutableSpan, MutableTrace, Tracer (tracerServiceName), tracerPropagationCodecs )
 import Honeycomb.Tracing.Fields
     ( typeField,
       packageField,
@@ -28,7 +28,7 @@ import Honeycomb.Tracing.Fields
       requestQueryParamsField,
       statusCodeField,
       responseContentTypeField, packageVersionField )
-import Honeycomb.Tracing.Raw ( newTrace, closeTrace, spanning, addSpanField, addSpanFields )
+import Honeycomb.Tracing.Raw ( initializeTraceContext, sendLocalTraceSpans, spanning, addSpanField, addSpanFields )
 import Network.HTTP.Types
     ( Status(statusCode), hAccept, hContentType )
 import Network.Wai
@@ -43,25 +43,27 @@ import System.IO.Unsafe ( unsafePerformIO )
 import qualified Data.HashMap.Strict as H
 import UnliftIO ( SomeException, bracket )
 import Data.Text (Text)
+import Honeycomb.Tracing.Propagation
 
-traceKey :: Key Trace
+traceKey :: Key MutableTrace
 traceKey = unsafePerformIO newKey
 {-# NOINLINE traceKey #-}
 
-spanKey :: Key Span
+spanKey :: Key MutableSpan
 spanKey = unsafePerformIO newKey
 {-# NOINLINE spanKey #-}
 
-lookupTrace :: Request -> Maybe Trace
+lookupTrace :: Request -> Maybe MutableTrace
 lookupTrace = Data.Vault.Lazy.lookup traceKey . vault
 
-lookupSpan :: Request -> Maybe Span
+lookupSpan :: Request -> Maybe MutableSpan
 lookupSpan = Data.Vault.Lazy.lookup spanKey . vault
 
 beelineMiddleware :: Tracer -> Middleware
 beelineMiddleware conf app req responder = runReaderT (do
-  -- TODO inherit trace if possible
-  bracket newTrace closeTrace $ \trace -> do
+  -- Inherit trace if a recognized trace format is hanging about
+  let propagatedInfo = getContextFromCodecs (tracerPropagationCodecs conf) (requestHeaders req)
+  bracket (initializeTraceContext propagatedInfo) sendLocalTraceSpans $ \trace -> do
     -- Default to path for span name, but can be overridden
     let path = T.decodeUtf8 $ rawPathInfo req
     spanning trace (tracerServiceName conf) Nothing {- <- TODO pull from headers? -} path errorHandler $ \span_ -> do
@@ -116,7 +118,7 @@ beelineMiddleware conf app req responder = runReaderT (do
           ]
         responder resp) conf
   where
-    errorHandler :: Span -> SomeException -> ReaderT Tracer IO ()
+    errorHandler :: MutableSpan -> SomeException -> ReaderT Tracer IO ()
     errorHandler span_ err = do
       addSpanField span_ requestErrorField $ show $ typeOf err
       addSpanField span_ requestErrorDetailField $ show err

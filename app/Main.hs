@@ -21,6 +21,7 @@ import Honeycomb.Tracing
       HasSpan(..),
       HasSpanErrorHandler(..),
       HasTracer(..),
+      MutableSpan,
       Span(EmptySpan),
       SpanErrorHandler,
       Tracer(Tracer) )
@@ -58,7 +59,7 @@ import Honeycomb.API.Markers
 -- | This is my data type. There are many like it, but this one is mine.
 data Minimal = Minimal
   { minimalTracer :: Tracer
-  , minimalCurrentSpan :: Span
+  , minimalCurrentSpan :: MutableSpan
   , minimalSqlConn :: SqlBackend
   , minimalSpanErrorHandler :: SpanErrorHandler
   }
@@ -105,7 +106,7 @@ main :: IO ()
 main = do
   writeKey <- getEnv "HONEYCOMB_TEAM_WRITE_KEY"
   c <- initializeHoneycomb $ config (T.pack writeKey) (DatasetName "testing-client")
-  let traceConf = Tracer c "testing-wai" [] Always UUIDGenerator
+  let traceConf = Tracer c "testing-wai" [] Always UUIDGenerator Nothing
   putStrLn "Running"
   t <- now
   let makeMarker = createMarker 

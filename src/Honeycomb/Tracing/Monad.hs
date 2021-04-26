@@ -25,16 +25,16 @@ type MonadSpan env m =
   , HasSpan env
   )
 
-askTrace :: (MonadReader env m, HasTrace env) => m Trace
+askTrace :: (MonadReader env m, HasTrace env) => m MutableTrace
 askTrace = view traceL
 
-localTrace :: (MonadReader env m, HasTrace env) => (Trace -> Trace) -> m a -> m a
+localTrace :: (MonadReader env m, HasTrace env) => (MutableTrace -> MutableTrace) -> m a -> m a
 localTrace f = local (traceL %~ f)
 
-askSpan :: (MonadReader env m, HasSpan env) => m Span
+askSpan :: (MonadReader env m, HasSpan env) => m MutableSpan
 askSpan = view spanL
 
-localSpan :: (MonadReader env m, HasSpan env) => (Span -> Span) -> m a -> m a
+localSpan :: (MonadReader env m, HasSpan env) => (MutableSpan -> MutableSpan) -> m a -> m a
 localSpan f = local (spanL %~ f)
 
 askServiceName :: (MonadReader env m, HasServiceName env) => m ServiceName

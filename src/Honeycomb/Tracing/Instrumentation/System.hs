@@ -13,7 +13,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Honeycomb.Tracing
 import Honeycomb.Tracing.Raw
 
-annotateTraceWithSystemInfo :: MonadIO m => Trace -> m ()
+annotateTraceWithSystemInfo :: MonadIO m => MutableTrace -> m ()
 annotateTraceWithSystemInfo t = do
   metrics <- readRtsMetrics
   let (CPid pid) = currentProcessId

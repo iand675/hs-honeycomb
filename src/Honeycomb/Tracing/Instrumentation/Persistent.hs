@@ -17,8 +17,9 @@ import Honeycomb.Tracing.Raw
 import UnliftIO
 import qualified Data.HashMap.Strict as H
 import Data.Aeson
+import Lens.Micro.Mtl (view)
 
-wrapConnection :: (MonadUnliftIO m, MonadReader r m, HasTracer r) => Span -> SqlBackend -> m SqlBackend
+wrapConnection :: (MonadUnliftIO m, MonadReader r m, HasTracer r) => MutableSpan -> SqlBackend -> m SqlBackend
 wrapConnection EmptySpan conn = pure conn
 wrapConnection Span{..} conn = do
   m <- askUnliftIO
@@ -31,7 +32,7 @@ wrapConnection Span{..} conn = do
           { stmtExecute = \ps -> unliftIO m $ do
             spanning
               trace
-              (tracerServiceName $ traceTracer trace)
+              (traceServiceName trace)
               (Just spanId)
               "db.query"
               (\child (e :: SomeException) -> do
@@ -48,7 +49,7 @@ wrapConnection Span{..} conn = do
           , stmtQuery = \ps -> do
               child <- mkAcquire (unliftIO m $ newSpan
                     trace
-                    (tracerServiceName $ traceTracer trace)
+                    (traceServiceName trace)
                     (Just spanId)
                     "db.query") closeSpan
               annotateBasics child conn
@@ -69,7 +70,7 @@ wrapConnection Span{..} conn = do
     wrappedBegin m preparer iso = unliftIO m $ do
       spanning
         trace
-        (tracerServiceName $ traceTracer trace)
+        (traceServiceName trace)
         (Just spanId)
         "db.transaction.begin"
         (\child (e :: SomeException) -> do
@@ -83,7 +84,7 @@ wrapConnection Span{..} conn = do
     wrappedCommit m preparer = unliftIO m $ do
       spanning
         trace
-        (tracerServiceName $ traceTracer trace)
+        (traceServiceName trace)
         (Just spanId)
         "db.transaction.commit"
         (\child (e :: SomeException) -> do
@@ -97,7 +98,7 @@ wrapConnection Span{..} conn = do
     wrappedRollback m preparer = unliftIO m $ do
       spanning
         trace
-        (tracerServiceName $ traceTracer trace)
+        (traceServiceName trace)
         (Just spanId)
         "db.transaction.rollback"
         (\child (e :: SomeException) -> do
@@ -109,7 +110,7 @@ wrapConnection Span{..} conn = do
           connRollback conn preparer
         )
 
-annotateBasics :: MonadIO m => Span -> SqlBackend -> m ()
+annotateBasics :: MonadIO m => MutableSpan -> SqlBackend -> m ()
 annotateBasics s conn = addSpanFields s $ H.fromList
   [ (packageField, String "persistent/esqueleto")
   , (serviceNameField, String $ connRDBMS conn)

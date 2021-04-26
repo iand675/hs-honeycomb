@@ -5,8 +5,10 @@ import Data.ByteString.Char8 (ByteString)
 import Data.Text (Text)
 import Data.Word
 import Lens.Micro
+import Data.String (IsString)
 
 newtype DatasetName = DatasetName { fromDatasetName :: Text }
+  deriving (Show, Eq, Ord, IsString)
 
 data Config = Config
   { teamWritekey :: Text

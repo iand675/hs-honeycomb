@@ -1,7 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE RecordWildCards #-}
-module Honeycomb.Tracing.Raw where
+module Honeycomb.Tracing.Raw 
+  ( initializeTraceContext
+  , sendLocalTraceSpans
+  -- , setSampleRate
+  , addTraceField
+  , addTraceFields
+  , newSpan
+  , closeSpan
+  , addSpanField
+  , addSpanFields
+  , addEvent
+  , addLink
+  , Link(..)
+  , spanning
+  , spanningLifted
+  ) where
 import Chronos
 import UnliftIO
 import Control.Applicative
@@ -22,28 +37,41 @@ import Honeycomb.Tracing.Fields
 import Data.Word
 import Control.Monad.Trans (lift)
 import Conduit (MonadTrans)
+import Honeycomb.Tracing.Propagation
 
-newTrace :: (MonadIO m, MonadReader r m, HasTracer r) => m Trace
-newTrace =
-  Trace
-    <$> view (tracerL . honeycombClientL)
-    <*> (view tracerL >>= \Tracer{..} -> liftIO $ generateTraceId tracerIdGenerator)
-    <*> liftIO (newIORef Nothing)
-    <*> liftIO (newIORef mempty)
-    <*> liftIO (newIORef mempty)
-    <*> view tracerL
+-- | Create the basic context necessary to create spans for a given trace
+initializeTraceContext :: (MonadIO m, MonadReader r m, HasTracer r) 
+  => PropagationContext -- ^ optionally initialize a trace with context from the outside world
+  -> m MutableTrace
+initializeTraceContext externalCtx = do
+  Tracer{..} <- view tracerL
+  tId <- case externalCtx of
+    EmptyContext -> liftIO $ generateTraceId tracerIdGenerator
+    Context{..} -> pure propagatedTraceId
+  let fs = case externalCtx of
+        EmptyContext -> mempty
+        Context{..} -> propagatedTraceFields
+      ds = case externalCtx of
+        EmptyContext -> Nothing
+        Context{..} -> propagatedDataset
+  liftIO $
+    Trace tId tracerServiceName
+      <$> liftIO (newIORef Nothing)
+      <*> liftIO (newIORef mempty)
+      <*> liftIO (newIORef fs)
+      <*> pure ds
 
+-- TODO not sure if this should exist or not
 setSampleRate :: (MonadIO m, HasTrace t) => t -> Word64 -> m ()
-setSampleRate t x = do
-  writeIORef (t ^. traceL . to traceSample) (Just x)
+setSampleRate t x = writeIORef (t ^. traceL . to traceSample) (Just x)
 
-makeEvent :: MonadIO m => HashMap Text Value -> Span -> m (Maybe Event)
-makeEvent _ EmptySpan = pure Nothing
-makeEvent traceFields Span{..} = liftIO $ do
-  spanFields <- readIORef fields
-  startT <- readIORef startTime
-  endT <- fromMaybe startT <$> readIORef endTime
-  let addParentId = maybe id (\x xs -> (parentIdField, toJSON x) : xs) parentSpan
+makeEvent :: HashMap Text Value -> (Maybe Word64, HashMap Text Value) -> ImmutableSpan -> Maybe Event
+makeEvent _ _ EmptySpan = Nothing
+makeEvent traceFields (msampleRate, postprocessedSpanFields) Span{..} = do
+  let spanFields = postprocessedSpanFields
+      startT = startTime
+      endT = fromMaybe startT endTime
+      addParentId = maybe id (\x xs -> (parentIdField, toJSON x) : xs) parentSpan
       officialFields =
         addParentId
           [ (spanNameField, String name),
@@ -53,32 +81,40 @@ makeEvent traceFields Span{..} = liftIO $ do
             (traceIdField, toJSON $ traceId trace)
             -- (metaSpanTypeField, String metaTypeSpanEventValue)
           ]
-  pure $ Just $ event
+  Just $ event
     { _fields = traceFields <> spanFields <> H.fromList officialFields
     , _timestamp = Just startT
+    , _sampleRate = msampleRate
+    , _dataset = traceDataset trace
     }
 
-closeTrace :: MonadHoneycomb env m => Trace -> m ()
-closeTrace t = do
-  fs <- readIORef $ traceFields t
-  r <- fmap H.elems $ readIORef $ traceSpans t
-  allSpansAreClosed <- all isJust <$> mapM (readIORef . endTime) r
+-- | This technically only closes the trace in the local sense. Additional spans may
+-- be sent to Honeycomb (e.g. from propagation) as long as they fall within the root
+-- span's start/end times.
+sendLocalTraceSpans :: (MonadIO m, MonadReader env m, HasTracer env) => MutableTrace -> m ()
+sendLocalTraceSpans mutT = do
+  tracer <- view tracerL
+  t <- freeze mutT
+  let fs = traceFields t
+      r = H.elems $ traceSpans t
+      allSpansAreClosed = all (isJust . endTime) r
   unless allSpansAreClosed $ do
     -- TODO better warning or something.
     liftIO $ putStrLn "Warning: some spans for trace are not closed prior to sending."
-  postprocessedEvents <- mapM (_postprocessEvent <=< makeEvent fs) r
-  mapM_ send $ catMaybes $ catMaybes postprocessedEvents
+  let postprocessedEvents = map (\s -> makeEvent fs (_postprocessEvent tracer s) s) r
+  mapM_ (send tracer) $ catMaybes postprocessedEvents
   where
-    -- TODO
-    _postprocessEvent = pure . Just
+    _postprocessEvent c s = case tracerSpanPostProcessor c of
+      Nothing -> (Nothing, fields s)
+      Just f -> f s
 
 newSpan ::
   (MonadIO m, MonadReader r m, HasTracer r) =>
-  Trace ->
+  MutableTrace ->
   ServiceName -> -- Service
   Maybe SpanId -> -- Parent ID
   Text -> -- Name
-  m Span
+  m MutableSpan
 newSpan t svc pid n = do
   _id <- view tracerL >>= \Tracer{..} -> liftIO $ generateSpanId tracerIdGenerator
   liftIO $ do
@@ -94,52 +130,51 @@ newSpan t svc pid n = do
     modifyIORef' (traceSpans t) (H.insert _id newSpan_)
     pure newSpan_
 
-closeSpan :: MonadIO m => Span -> m ()
+closeSpan :: MonadIO m => MutableSpan -> m ()
 closeSpan Span {..} = liftIO $ do
   closeTime <- now
-  -- putStrLn ("Closing span " ++ show spanId ++ " at " ++ show closeTime)
   modifyIORef' endTime (\t -> t <|> pure closeTime)
 closeSpan EmptySpan = pure ()
 
 spanning ::
   (MonadUnliftIO m, MonadReader r m, HasTracer r, Exception e) =>
-  Trace ->
+  MutableTrace ->
   ServiceName ->
   Maybe SpanId ->
   Text ->
   -- | Annotate spans with specific exceptions
-  (Span -> e -> m ()) ->
-  (Span -> m a) ->
+  (MutableSpan -> e -> m ()) ->
+  (MutableSpan -> m a) ->
   m a
 spanning t svc pid n errorHandler f = bracket (newSpan t svc pid n) closeSpan $ \s -> do
   handle (\e -> errorHandler s e *> throwIO e) $ f s
 
 spanningLifted ::
   (MonadTrans t, MonadUnliftIO m, MonadUnliftIO (t m), MonadReader r m, HasTracer r, Exception e) =>
-  Trace ->
+  MutableTrace ->
   ServiceName ->
   Maybe SpanId ->
   Text ->
   -- | Annotate spans with specific exceptions
-  (Span -> e -> t m ()) ->
-  (Span -> t m a) ->
+  (MutableSpan -> e -> t m ()) ->
+  (MutableSpan -> t m a) ->
   t m a
 spanningLifted t svc pid n errorHandler f = bracket (lift $ newSpan t svc pid n) closeSpan $ \s -> do
   handle (\e -> errorHandler s e *> throwIO e) $ f s
 
 
-addTraceField :: (MonadIO m, ToJSON a) => Trace -> Text -> a -> m ()
+addTraceField :: (MonadIO m, ToJSON a) => MutableTrace -> Text -> a -> m ()
 addTraceField trace fieldName x = modifyIORef' (traceFields trace) (H.insert fieldName $ toJSON x)
 
-addSpanField :: (MonadIO m, ToJSON a) => Span -> Text -> a -> m ()
+addSpanField :: (MonadIO m, ToJSON a) => MutableSpan -> Text -> a -> m ()
 addSpanField EmptySpan _ _ = pure ()
 addSpanField Span{..} fieldName x = do
   modifyIORef' fields (H.insert fieldName $ toJSON x)
 
-addTraceFields :: (MonadIO m) => Trace -> HashMap Text Value -> m ()
+addTraceFields :: (MonadIO m) => MutableTrace -> HashMap Text Value -> m ()
 addTraceFields trace fs = modifyIORef' (traceFields trace) (<> fs)
 
-addSpanFields :: (MonadIO m) => Span -> HashMap Text Value -> m ()
+addSpanFields :: (MonadIO m) => MutableSpan -> HashMap Text Value -> m ()
 addSpanFields EmptySpan _ = pure ()
 addSpanFields Span{..} fs = modifyIORef' fields (<> fs)
 
@@ -148,7 +183,15 @@ data Link = Link
   , linkTraceId :: TraceId
   }
 
-addLink :: (MonadIO m, MonadReader r m, HasTracer r) => Trace -> ServiceName -> SpanId -> Text -> Link -> HashMap Text Value -> m ()
+-- | A span may be linked to zero or more other spans or traces that are causally related. 
+-- They can point to another span within the same trace or a span in a different trace. 
+-- The tracing data model focuses on the parent-child relationship between spans, 
+-- and most spans can be adequately described with just a span id, a parent span id, and a trace ID. 
+-- However, in some special cases, it may be useful to describe a less direct causal relationship between spans. 
+-- Links are optional, but can be useful for expressing a causal relationship to one or more spans or traces elsewhere 
+-- in your dataset. Links can be used to represent batched operations where a span was initiated by multiple 
+-- initiating spans, each representing a single incoming item being processed in the batch.
+addLink :: (MonadIO m, MonadReader r m, HasTracer r) => MutableTrace -> ServiceName -> SpanId -> Text -> Link -> HashMap Text Value -> m ()
 addLink t svc pid n Link{..} fs = do
   _id <- view tracerL >>= \Tracer{..} -> liftIO $ generateSpanId tracerIdGenerator
   liftIO $ do
@@ -169,7 +212,14 @@ addLink t svc pid n Link{..} fs = do
     modifyIORef' (traceSpans t) (H.insert _id newSpan_)
     pure ()
 
-addEvent :: (MonadIO m, MonadReader r m, HasTracer r) => Trace -> ServiceName -> SpanId -> Text -> HashMap Text Value -> m ()
+-- | Span Events are timestamped structured logs (aka events), without a duration. 
+-- They occur during the course of a Span and can be thought of as annotations on the Span. 
+-- For example, you might have a Span that represents a specific operation in your service. 
+-- That operation could have a loop, in which a non-fatal error can occur. 
+-- If you write the error to an error field on the Span, you’ll overwrite any previous errors 
+-- (from previous loop iterations) recorded in that field. This is a perfect use case for Span Events, 
+-- the error events can be attached as Span Event Annotations and you capture all the errors.
+addEvent :: (MonadIO m, MonadReader r m, HasTracer r) => MutableTrace -> ServiceName -> SpanId -> Text -> HashMap Text Value -> m ()
 addEvent t svc pid n fs = do
   _id <- view tracerL >>= \Tracer{..} -> liftIO $ generateSpanId tracerIdGenerator
   liftIO $ do
