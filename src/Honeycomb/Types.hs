@@ -16,11 +16,11 @@ data Config = Config
   , apiHost :: Text
   , sampleRate :: Maybe Word64
   , pendingQueueSize :: Word64
-  , responseQueueSize :: Word64
+  -- , responseQueueSize :: Word64
   , sendThreads :: Word64
   , sendBlocking :: Bool
-  , nullTransmission :: Bool
-  , customUserAgent :: ByteString
+  , nullTransmission :: Bool -- TODO
+  , customUserAgent :: ByteString -- TODO
   }
 
 class HasConfig a where
@@ -33,4 +33,4 @@ instance HasConfig Config where
 --
 -- @since 0.0.1
 config :: Text -> DatasetName -> Config
-config k ds = Config k ds "api.honeycomb.io" Nothing 0 0 0 False False ""
+config k ds = Config k ds "api.honeycomb.io" Nothing 1024 1 False False ""

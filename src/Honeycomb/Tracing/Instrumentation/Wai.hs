@@ -8,7 +8,7 @@ import Data.Aeson
 import qualified Data.Text.Encoding as T
 import Data.Typeable ( typeOf )
 import Data.Vault.Lazy ( insert, lookup, newKey, Key )
-import Honeycomb.Tracing ( MutableSpan, MutableTrace, Tracer (tracerServiceName), tracerPropagationCodecs )
+import Honeycomb.Tracing ( MutableSpan, MutableTrace, Tracer (tracerServiceName), tracerPropagationCodecs, recordBasicErrorHandler )
 import Honeycomb.Tracing.Fields
     ( typeField,
       packageField,
@@ -66,7 +66,7 @@ beelineMiddleware conf app req responder = runReaderT (do
   bracket (initializeTraceContext propagatedInfo) sendLocalTraceSpans $ \trace -> do
     -- Default to path for span name, but can be overridden
     let path = T.decodeUtf8 $ rawPathInfo req
-    spanning trace (tracerServiceName conf) Nothing {- <- TODO pull from headers? -} path errorHandler $ \span_ -> do
+    spanning conf trace (tracerServiceName conf) Nothing {- <- TODO pull from headers? -} path [recordBasicErrorHandler] $ \span_ -> do
       addSpanFields span_ $ H.fromList
         [ (typeField, String "http_server")
         , (packageField, String "wai/warp")
@@ -103,14 +103,7 @@ beelineMiddleware conf app req responder = runReaderT (do
         ]
       -}
       let vault' = insert spanKey span_ $ insert traceKey trace $ vault req
-          req' = req 
-            { vault = vault' 
-            {-
-            , requestHeaders = (requestHeaders req)
-                {
-                }
-            -}
-            }
+          req' = req { vault = vault' }
       liftIO $ app req' $ \resp -> do
         addSpanFields span_ $ H.fromList 
           [ (statusCodeField, toJSON $ statusCode $ responseStatus resp)

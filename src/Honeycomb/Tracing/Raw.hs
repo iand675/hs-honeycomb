@@ -109,26 +109,25 @@ sendLocalTraceSpans mutT = do
       Just f -> f s
 
 newSpan ::
-  (MonadIO m, MonadReader r m, HasTracer r) =>
+  (MonadIO m) =>
+  Tracer ->
   MutableTrace ->
   ServiceName -> -- Service
   Maybe SpanId -> -- Parent ID
   Text -> -- Name
   m MutableSpan
-newSpan t svc pid n = do
-  _id <- view tracerL >>= \Tracer{..} -> liftIO $ generateSpanId tracerIdGenerator
-  liftIO $ do
-    ts <- now
-    -- putStrLn ("Starting span: " ++ show _id ++ " at " ++ show ts)
-    newSpan_ <-
-      Span _id n svc
-        <$> newIORef ts
-        <*> newIORef Nothing
-        <*> pure pid
-        <*> pure t
-        <*> newIORef H.empty
-    modifyIORef' (traceSpans t) (H.insert _id newSpan_)
-    pure newSpan_
+newSpan Tracer{..} t svc pid n = liftIO $ do
+  _id <- generateSpanId tracerIdGenerator
+  ts <- now
+  newSpan_ <-
+    Span _id n svc
+      <$> newIORef ts
+      <*> newIORef Nothing
+      <*> pure pid
+      <*> pure t
+      <*> newIORef H.empty
+  modifyIORef' (traceSpans t) (H.insert _id newSpan_)
+  pure newSpan_
 
 closeSpan :: MonadIO m => MutableSpan -> m ()
 closeSpan Span {..} = liftIO $ do
@@ -136,32 +135,36 @@ closeSpan Span {..} = liftIO $ do
   modifyIORef' endTime (\t -> t <|> pure closeTime)
 closeSpan EmptySpan = pure ()
 
+spanAnnotatorToHandler :: MonadIO m => MutableSpan -> SpanErrorAnnotator -> Handler m a
+spanAnnotatorToHandler s (SpanErrorAnnotator f) = Handler $ \e -> liftIO (f s e) *> throwIO e
+
 spanning ::
-  (MonadUnliftIO m, MonadReader r m, HasTracer r, Exception e) =>
+  (MonadUnliftIO m) =>
+  Tracer ->
   MutableTrace ->
   ServiceName ->
   Maybe SpanId ->
   Text ->
   -- | Annotate spans with specific exceptions
-  (MutableSpan -> e -> m ()) ->
+  [SpanErrorAnnotator] ->
   (MutableSpan -> m a) ->
   m a
-spanning t svc pid n errorHandler f = bracket (newSpan t svc pid n) closeSpan $ \s -> do
-  handle (\e -> errorHandler s e *> throwIO e) $ f s
+spanning tr t svc pid n errorAnnotators f = bracket (newSpan tr t svc pid n) closeSpan $ \s -> do
+  f s `catches` map (spanAnnotatorToHandler s) errorAnnotators
 
 spanningLifted ::
-  (MonadTrans t, MonadUnliftIO m, MonadUnliftIO (t m), MonadReader r m, HasTracer r, Exception e) =>
+  (MonadTrans t, MonadUnliftIO m, MonadUnliftIO (t m)) =>
+  Tracer ->
   MutableTrace ->
   ServiceName ->
   Maybe SpanId ->
   Text ->
   -- | Annotate spans with specific exceptions
-  (MutableSpan -> e -> t m ()) ->
+  [SpanErrorAnnotator] ->
   (MutableSpan -> t m a) ->
   t m a
-spanningLifted t svc pid n errorHandler f = bracket (lift $ newSpan t svc pid n) closeSpan $ \s -> do
-  handle (\e -> errorHandler s e *> throwIO e) $ f s
-
+spanningLifted tr t svc pid n errorAnnotators f = bracket (lift $ newSpan tr t svc pid n) closeSpan $ \s -> do
+  f s `catches` map (spanAnnotatorToHandler s) errorAnnotators
 
 addTraceField :: (MonadIO m, ToJSON a) => MutableTrace -> Text -> a -> m ()
 addTraceField trace fieldName x = modifyIORef' (traceFields trace) (H.insert fieldName $ toJSON x)
@@ -191,26 +194,23 @@ data Link = Link
 -- Links are optional, but can be useful for expressing a causal relationship to one or more spans or traces elsewhere 
 -- in your dataset. Links can be used to represent batched operations where a span was initiated by multiple 
 -- initiating spans, each representing a single incoming item being processed in the batch.
-addLink :: (MonadIO m, MonadReader r m, HasTracer r) => MutableTrace -> ServiceName -> SpanId -> Text -> Link -> HashMap Text Value -> m ()
-addLink t svc pid n Link{..} fs = do
-  _id <- view tracerL >>= \Tracer{..} -> liftIO $ generateSpanId tracerIdGenerator
-  liftIO $ do
-    ts <- now
-    -- putStrLn ("Starting span: " ++ show _id ++ " at " ++ show ts)
-    newSpan_ <-
-      Span _id n svc
-        <$> newIORef ts
-        <*> newIORef (Just ts)
-        <*> pure (Just pid)
-        <*> pure t
-        <*> newIORef (fs <> H.fromList
-            [ (metaAnnotationTypeField, String "link")
-            , ("trace.link.span_id", toJSON linkSpanId)
-            , ("trace.link.trace_id", toJSON linkTraceId)
-            ]
-          )
-    modifyIORef' (traceSpans t) (H.insert _id newSpan_)
-    pure ()
+addLink :: (MonadIO m) => Tracer -> MutableTrace -> ServiceName -> SpanId -> Text -> Link -> HashMap Text Value -> m ()
+addLink Tracer{..} t svc pid n Link{..} fs = liftIO $ do
+  _id <- generateSpanId tracerIdGenerator
+  ts <- now
+  newSpan_ <-
+    Span _id n svc
+      <$> newIORef ts
+      <*> newIORef (Just ts)
+      <*> pure (Just pid)
+      <*> pure t
+      <*> newIORef (fs <> H.fromList
+          [ (metaAnnotationTypeField, String "link")
+          , ("trace.link.span_id", toJSON linkSpanId)
+          , ("trace.link.trace_id", toJSON linkTraceId)
+          ]
+        )
+  modifyIORef' (traceSpans t) (H.insert _id newSpan_)
 
 -- | Span Events are timestamped structured logs (aka events), without a duration. 
 -- They occur during the course of a Span and can be thought of as annotations on the Span. 
@@ -219,21 +219,19 @@ addLink t svc pid n Link{..} fs = do
 -- If you write the error to an error field on the Span, you’ll overwrite any previous errors 
 -- (from previous loop iterations) recorded in that field. This is a perfect use case for Span Events, 
 -- the error events can be attached as Span Event Annotations and you capture all the errors.
-addEvent :: (MonadIO m, MonadReader r m, HasTracer r) => MutableTrace -> ServiceName -> SpanId -> Text -> HashMap Text Value -> m ()
-addEvent t svc pid n fs = do
-  _id <- view tracerL >>= \Tracer{..} -> liftIO $ generateSpanId tracerIdGenerator
-  liftIO $ do
-    ts <- now
-    -- putStrLn ("Starting span: " ++ show _id ++ " at " ++ show ts)
-    newSpan_ <-
-      Span _id n svc
-        <$> newIORef ts
-        <*> newIORef (Just ts)
-        <*> pure (Just pid)
-        <*> pure t
-        <*> newIORef (fs <> H.fromList
-            [ (metaAnnotationTypeField, String "span_event")
-            ]
-          )
-    modifyIORef' (traceSpans t) (H.insert _id newSpan_)
-    pure ()
+addEvent :: (MonadIO m) => Tracer -> MutableTrace -> ServiceName -> SpanId -> Text -> HashMap Text Value -> m ()
+addEvent Tracer{..} t svc pid n fs = liftIO $ do
+  _id <- generateSpanId tracerIdGenerator
+  ts <- now
+  -- putStrLn ("Starting span: " ++ show _id ++ " at " ++ show ts)
+  newSpan_ <-
+    Span _id n svc
+      <$> newIORef ts
+      <*> newIORef (Just ts)
+      <*> pure (Just pid)
+      <*> pure t
+      <*> newIORef (fs <> H.fromList
+          [ (metaAnnotationTypeField, String "span_event")
+          ]
+        )
+  modifyIORef' (traceSpans t) (H.insert _id newSpan_)

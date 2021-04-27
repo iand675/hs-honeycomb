@@ -25,7 +25,6 @@ instance PropagationCodec V1PropagationCodec where
     Nothing -> EmptyContext
     Just str -> case second C.tail $ C.break (== ';') str of
       ("1", str') -> case C.split ',' str' of
-        -- TODO need better tupling logic here
         rawEntries -> case map (second C.tail . C.break (== '=')) rawEntries of
           entries ->
             fromMaybe EmptyContext $ do

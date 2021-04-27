@@ -27,7 +27,7 @@ import Data.Typeable (typeOf)
 import Control.Monad.Reader
 
 
-addRequestFields :: MonadSpan env m => Request -> m ()
+addRequestFields :: MonadTrace m => Request -> m ()
 addRequestFields req = addSpanFields $ H.fromList
   [ (clientRequestPathField, toJSON $ decodeUtf8 $ HTTP.path req)
   , (clientRequestMethodField, toJSON $ decodeUtf8 $ HTTP.method req)
@@ -39,7 +39,7 @@ addRequestFields req = addSpanFields $ H.fromList
   -- , (clientRequestContentLengthField, _)
   ]
 
-addResponseFields :: MonadSpan env m => Response a -> m ()
+addResponseFields :: MonadTrace m => Response a -> m ()
 addResponseFields resp = addSpanFields $ H.fromList
   [ (clientResponseContentTypeField, toJSON $ fmap decodeUtf8 $ lookup hContentType $ responseHeaders resp)
   , (clientResponseStatusCodeField, toJSON $ statusCode $ HTTP.responseStatus resp)
@@ -48,12 +48,12 @@ addResponseFields resp = addSpanFields $ H.fromList
   ]
 
 -- TODO
-clientRequestErrorHandler :: (MonadTrace env m) => SomeException -> m ()
+clientRequestErrorHandler :: (MonadTrace m) => SomeException -> m ()
 clientRequestErrorHandler e = do
   addSpanField clientRequestErrorField $ show $ typeOf e
   addSpanField clientRequestErrorDetailField $ show e
 
-withResponse :: (MonadUnliftIO m, MonadTrace env m) => Request -> Manager -> (Response BodyReader -> m a) -> m a
+withResponse :: (MonadUnliftIO m, MonadTrace m) => Request -> Manager -> (Response BodyReader -> m a) -> m a
 withResponse req m f = spanning "withResponse" $ do
   addRequestFields req
   withRunInIO $ \runInIO -> 
@@ -61,26 +61,26 @@ withResponse req m f = spanning "withResponse" $ do
       addResponseFields resp
       f resp
 
-httpLbs :: (MonadTrace env m) => Request -> Manager -> m (Response L.ByteString) 
-httpLbs req m = spanningIO "httpLbs" $ do
+httpLbs :: (MonadTrace m) => Request -> Manager -> m (Response L.ByteString) 
+httpLbs req m = spanning "httpLbs" $ do
   addRequestFields req
   resp <- liftIO $ HTTP.httpLbs req m
   addResponseFields resp
   pure resp
 
-httpNoBody :: (MonadTrace env m) => Request -> Manager -> m (Response ()) 
-httpNoBody req m = spanningIO "httpNoBody" $ do
+httpNoBody :: (MonadTrace m) => Request -> Manager -> m (Response ()) 
+httpNoBody req m = spanning "httpNoBody" $ do
   addRequestFields req
   resp <- liftIO $ HTTP.httpNoBody req m
   addResponseFields resp
   pure resp
 
-responseOpen :: (MonadTrace env m) => Request -> Manager -> m (Response BodyReader)
-responseOpen req m = spanningIO "responseOpen" $ do
+responseOpen :: (MonadTrace m) => Request -> Manager -> m (Response BodyReader)
+responseOpen req m = spanning "responseOpen" $ do
   addRequestFields req
   resp <- liftIO $ HTTP.responseOpen req m
   addResponseFields resp
   pure resp
 
-responseClose :: (MonadTrace env m) => Response a -> m ()
-responseClose resp = spanningIO "responseClose" $ liftIO $ HTTP.responseClose resp
+responseClose :: (MonadTrace m) => Response a -> m ()
+responseClose resp = spanning "responseClose" $ liftIO $ HTTP.responseClose resp

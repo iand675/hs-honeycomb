@@ -75,7 +75,7 @@ Requests to the individual event endpoint have a maximum request body size of 10
 Requests to the batched events endpoint have a maximum request body size of 5MB. Individual event bodies in the batch are limited to 100KB each.
 The maximum number of distinct columns (fields) allowed per event is 2000.
 
-Size limitations may be addressed by gzip ping request bodies. Be sure to set the Content-Encoding: gzip
+Size limitations may be addressed by gzipping request bodies. Be sure to set the Content-Encoding: gzip
 -}
 newtype BatchOptions = BatchOptions 
   { useGZip :: Bool

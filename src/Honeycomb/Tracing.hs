@@ -85,15 +85,25 @@ class HasSpan env where
 instance HasSpan MutableSpan where
   spanL = lens id (\_ new -> new)
 
-data SpanErrorHandler = forall e. Exception e => SpanErrorHandler (MutableSpan -> e -> IO ())
+data SpanErrorAnnotator = forall e. Exception e => SpanErrorAnnotator (MutableSpan -> e -> IO ())
 
-noOpSpanErrorHandler :: SpanErrorHandler
-noOpSpanErrorHandler = SpanErrorHandler $ \_ (_ :: SomeException) -> pure ()
+recordAnchoredErrorHandler :: MutableSpan -> SpanErrorAnnotator
+recordAnchoredErrorHandler s = case s of
+  EmptySpan -> recordBasicErrorHandler
+  Span{..} -> SpanErrorAnnotator $ \_ (e :: SomeException) -> do
+    modifyIORef' fields (H.insert "error" $ toJSON $ show e)
 
-class HasSpanErrorHandler env where
-  spanErrorHandlerL :: Lens' env SpanErrorHandler
+recordBasicErrorHandler :: SpanErrorAnnotator
+recordBasicErrorHandler = SpanErrorAnnotator $ \innerSpan (e :: SomeException) -> do
+  -- TODO use Raw.addSpanField for consistency
+  case innerSpan of
+    EmptySpan -> pure () -- WAT
+    Span{..} -> modifyIORef' fields (H.insert "error" $ toJSON $ show e)
 
-instance HasSpanErrorHandler SpanErrorHandler where
+class HasSpanErrorAnnotators env where
+  spanErrorHandlerL :: Lens' env [SpanErrorAnnotator]
+
+instance HasSpanErrorAnnotators [SpanErrorAnnotator] where
   spanErrorHandlerL = lens id (\_ new -> new)
 
 instance HasHoneycombClient Tracer where
@@ -199,21 +209,24 @@ instance Transient Span where
 
 -- | A data type that provides all of the necessary functionality to trace things
 -- via 'spanning'
-data SimpleTraceContext = SimpleTraceContext
-  { stcSvc :: ServiceName
-  , stcTracer :: Tracer
-  , stcSpan :: MutableSpan
-  , stcErrorHandler :: SpanErrorHandler
+data TraceContext = TraceContext
+  { tcSvc :: ServiceName
+  , tcTracer :: Tracer
+  , tcSpan :: MutableSpan
+  , tcErrorAnnotators :: [SpanErrorAnnotator]
   }
 
-instance HasServiceName SimpleTraceContext where
-  serviceNameL = lens stcSvc (\c s -> c { stcSvc = s })
-instance HasTracer SimpleTraceContext where
-  tracerL = lens stcTracer (\c t -> c { stcTracer = t })
-instance HasSpan SimpleTraceContext where
-  spanL = lens stcSpan (\c s -> c { stcSpan = s })
-instance HasSpanErrorHandler SimpleTraceContext where
-  spanErrorHandlerL = lens stcErrorHandler (\c e -> c { stcErrorHandler = e })
+instance HasServiceName TraceContext where
+  serviceNameL = lens tcSvc (\c s -> c { tcSvc = s })
+instance HasTracer TraceContext where
+  tracerL = lens tcTracer (\c t -> c { tcTracer = t })
+instance HasSpan TraceContext where
+  spanL = lens tcSpan (\c s -> c { tcSpan = s })
+instance HasSpanErrorAnnotators TraceContext where
+  spanErrorHandlerL = lens tcErrorAnnotators (\c e -> c { tcErrorAnnotators = e })
 
-asSimpleTraceContext :: (HasSpanErrorHandler env, HasServiceName env, HasTracer env, HasSpan env) => env -> SimpleTraceContext
-asSimpleTraceContext x = SimpleTraceContext (x ^. serviceNameL) (x ^. tracerL) (x ^. spanL) (x ^. spanErrorHandlerL)
+class HasTraceContext a where
+  traceContextL :: Lens' a TraceContext
+
+asSimpleTraceContext :: (HasSpanErrorAnnotators env, HasServiceName env, HasTracer env, HasSpan env) => env -> TraceContext
+asSimpleTraceContext x = TraceContext (x ^. serviceNameL) (x ^. tracerL) (x ^. spanL) (x ^. spanErrorHandlerL)

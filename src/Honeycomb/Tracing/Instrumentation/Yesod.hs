@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 module Honeycomb.Tracing.Instrumentation.Yesod where
 
 import qualified Data.ByteString.Char8 as C
@@ -10,8 +11,8 @@ import Data.Typeable ()
 import Honeycomb.Tracing
     ( HasServiceName(..),
       HasSpan(..),
-      HasSpanErrorHandler(..),
-      HasTracer(..) )-- ( Span, addField, HasTraceConfig (getTraceConfig), HasSpan )
+      HasSpanErrorAnnotators(..),
+      HasTracer(..), SpanErrorAnnotator(..), HasTrace(..), recordAnchoredErrorHandler, HasTraceContext(..) )-- ( Span, addField, HasTraceConfig (getTraceConfig), HasSpan )
 import Honeycomb.Tracing.Fields ( spanNameField )
 import Honeycomb.Tracing.Instrumentation.Wai (lookupSpan)
 import Honeycomb.Types ()
@@ -20,11 +21,15 @@ import Yesod.Core
     ( getCurrentRoute, waiRequest, HandlerFor, RenderRoute(Route) )
 import Yesod.Core.Types
     ( HandlerData(handlerEnv),
-      RunHandlerEnv(rheSite) )
+      RunHandlerEnv(rheSite),
+      HandlerContents(..),
+      ErrorResponse(..) )
 import Honeycomb.Tracing.Monad
 import Lens.Micro (lens, Lens', (.~))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (local)
+import qualified Honeycomb.Tracing.Raw as Raw
+import Control.Exception
 
 handlerEnvL :: Lens' (HandlerData child site) (RunHandlerEnv child site)
 handlerEnvL = lens handlerEnv (\h e -> h { handlerEnv = e })
@@ -32,41 +37,26 @@ handlerEnvL = lens handlerEnv (\h e -> h { handlerEnv = e })
 rheSiteL :: Lens' (RunHandlerEnv child site) site
 rheSiteL = lens rheSite (\rhe new -> rhe { rheSite = new })
 
-instance HasSpanErrorHandler site => HasSpanErrorHandler (RunHandlerEnv child site) where
-  spanErrorHandlerL = rheSiteL . spanErrorHandlerL
+instance HasTraceContext site => HasTraceContext (RunHandlerEnv child site) where
+  traceContextL = rheSiteL . traceContextL
 
-instance HasSpanErrorHandler site => HasSpanErrorHandler (HandlerData child site) where
-  spanErrorHandlerL = handlerEnvL . spanErrorHandlerL
+instance HasTraceContext site => HasTraceContext (HandlerData child site) where
+  traceContextL = handlerEnvL . traceContextL
 
-instance HasSpan site => HasSpan (RunHandlerEnv child site) where
-  spanL = rheSiteL . spanL
+instance HasTraceContext site => MonadTrace (HandlerFor site)
 
-instance HasSpan site => HasSpan (HandlerData child site) where
-  spanL = handlerEnvL . spanL
-
-instance HasTracer site => HasTracer (RunHandlerEnv child site) where
-  tracerL = rheSiteL . tracerL
-
-instance HasTracer site => HasTracer (HandlerData child site) where
-  tracerL = handlerEnvL . tracerL
-
-instance HasTracer site => HasServiceName (RunHandlerEnv child site) where
-  serviceNameL = rheSiteL . tracerL . serviceNameL
-
-instance HasTracer site => HasServiceName (HandlerData child site) where
-  serviceNameL = handlerEnvL . serviceNameL
-
-beelineMiddleware :: (Show (Route site), HasSpan site) => HandlerFor site res -> HandlerFor site res
+beelineMiddleware :: (Show (Route site), MonadTrace (HandlerFor site)) => HandlerFor site res -> HandlerFor site res
 beelineMiddleware handler = do
   req <- waiRequest
   case lookupSpan req of
     Nothing -> handler -- TODO set up a root span & trace if not instrumented in WAI middleware
-    Just span_ -> local (spanL .~ span_) $ do
+    Just span_ -> localSpan (const span_) $ localErrorAnnotators (recordAnchoredErrorHandler span_ :) $ do
       route <- getCurrentRoute
       case route of
         Nothing -> handler
         Just r -> do
           -- TODO Abusing the show instance like this is not ideal
           addSpanField "request.route" $ head $ words $ show r
-          addSpanField spanNameField (C.unpack (C.map toLower (requestMethod req)) ++ (head $ words $ show r))
+          addSpanField spanNameField (C.unpack (C.map toLower (requestMethod req)) ++ head (words $ show r))
           handler
+

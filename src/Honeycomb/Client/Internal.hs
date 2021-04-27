@@ -30,10 +30,11 @@ data HoneycombClient = HoneycombClient
   { clientConfig :: Config
   , clientGen :: GenIO
   -- | Subject to change
-  -- TODO this needs to respect dispatching to custom host/dataset/writekey/etc.
-  , clientEventBuffer :: TBQueue Event
+  -- TODO this respects dispatching to custom host/dataset/writekey/etc, but needs a means of
+  -- using the bulk events API instead of dispatching a bunch of single event calls.
+  , clientEventBuffer :: TBQueue (IO ())
   -- , clientQueueMap :: Map ThreadId 
-  , clientWorker :: Async ()
+  , clientWorkers :: [Async ()]
   }
 
 class HasHoneycombClient a where

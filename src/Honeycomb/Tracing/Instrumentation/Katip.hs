@@ -11,7 +11,8 @@ import qualified Data.HashMap.Strict as H
 import Data.Aeson ((.=))
 import Lens.Micro
 
-honeycombSpanScribe :: MonadTrace env m => m Scribe
+{-
+honeycombSpanScribe :: MonadTrace m => m Scribe
 honeycombSpanScribe = do
   env <- ask
   pure $ Scribe
@@ -34,3 +35,4 @@ honeycombSpanScribe = do
     , scribeFinalizer = pure ()
     , scribePermitItem = const $ pure True
     }
+-}

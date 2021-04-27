@@ -47,12 +47,16 @@ packages:
 #
 extra-deps:
 - git: git@github.com:iand675/persistent.git
-  commit: 6de5f682071a09e80b5f78a61dfe2a57356460a6
+  commit: 51ca558031027d4886bb05adf4a04cea39330202
   subdirs:
     - persistent
     - persistent-postgresql
     - persistent-template
     - persistent-qq
+- git: git@github.com:iand675/yesod
+  commit: 227d4119295c851ea25d54b0bafa2cc28c9e22f2
+  subdirs:
+    - yesod-persistent
 # Override default flag values for local packages and extra-deps
 # flags: {}
 

@@ -10,39 +10,39 @@ packages:
     version: 2.13.0.0
     git: git@github.com:iand675/persistent.git
     pantry-tree:
-      size: 3820
-      sha256: 7276b56cf95344864074ce094b63a21cfc79bf73291535fe7a6c7ebc22488862
-    commit: 6de5f682071a09e80b5f78a61dfe2a57356460a6
+      size: 3821
+      sha256: 38fadf2f72f8d5b28c4673e43fa53c3bf551ff98e14f9f806ecebd94843a3c5f
+    commit: 51ca558031027d4886bb05adf4a04cea39330202
   original:
     subdir: persistent
     git: git@github.com:iand675/persistent.git
-    commit: 6de5f682071a09e80b5f78a61dfe2a57356460a6
+    commit: 51ca558031027d4886bb05adf4a04cea39330202
 - completed:
     subdir: persistent-postgresql
     name: persistent-postgresql
     version: 2.13.0.0
     git: git@github.com:iand675/persistent.git
     pantry-tree:
-      size: 968
-      sha256: 00475aa41f0755d8b05ea08df1342fbe40165eefe7a017ba33255b93ced18c1e
-    commit: 6de5f682071a09e80b5f78a61dfe2a57356460a6
+      size: 1028
+      sha256: 1b7522da9f0ad1d511add84f0bb055ea962bf3ccc5f6e625355fbef75f87a4df
+    commit: 51ca558031027d4886bb05adf4a04cea39330202
   original:
     subdir: persistent-postgresql
     git: git@github.com:iand675/persistent.git
-    commit: 6de5f682071a09e80b5f78a61dfe2a57356460a6
+    commit: 51ca558031027d4886bb05adf4a04cea39330202
 - completed:
     subdir: persistent-template
     name: persistent-template
-    version: 2.12.0.0
+    version: 2.13.0.0
     git: git@github.com:iand675/persistent.git
     pantry-tree:
       size: 267
-      sha256: 6d31d8a3bde912d0c8b28d9d18caa77a5a7add42104d8bb109f7cd298f21a78f
-    commit: 6de5f682071a09e80b5f78a61dfe2a57356460a6
+      sha256: 98f110a89937c713c5e595be42bad3b4742cec0380d031a9f4644f28f63a1604
+    commit: 51ca558031027d4886bb05adf4a04cea39330202
   original:
     subdir: persistent-template
     git: git@github.com:iand675/persistent.git
-    commit: 6de5f682071a09e80b5f78a61dfe2a57356460a6
+    commit: 51ca558031027d4886bb05adf4a04cea39330202
 - completed:
     subdir: persistent-qq
     name: persistent-qq
@@ -51,11 +51,24 @@ packages:
     pantry-tree:
       size: 641
       sha256: 1e82d4e985d9f9a429b76ed0b6917dc5b797a37a997c234f48c3ade71248443e
-    commit: 6de5f682071a09e80b5f78a61dfe2a57356460a6
+    commit: 51ca558031027d4886bb05adf4a04cea39330202
   original:
     subdir: persistent-qq
     git: git@github.com:iand675/persistent.git
-    commit: 6de5f682071a09e80b5f78a61dfe2a57356460a6
+    commit: 51ca558031027d4886bb05adf4a04cea39330202
+- completed:
+    subdir: yesod-persistent
+    name: yesod-persistent
+    version: 1.6.0.7
+    git: git@github.com:iand675/yesod
+    pantry-tree:
+      size: 497
+      sha256: a12b2b318cd2d2cb912ed3fa0c247ef767ae9565940cd75cb3e4c71cf48dbb07
+    commit: 227d4119295c851ea25d54b0bafa2cc28c9e22f2
+  original:
+    subdir: yesod-persistent
+    git: git@github.com:iand675/yesod
+    commit: 227d4119295c851ea25d54b0bafa2cc28c9e22f2
 snapshots:
 - completed:
     size: 567037

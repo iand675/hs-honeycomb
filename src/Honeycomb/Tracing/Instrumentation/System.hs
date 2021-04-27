@@ -13,12 +13,13 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Honeycomb.Tracing
 import Honeycomb.Tracing.Raw
 
-annotateTraceWithSystemInfo :: MonadIO m => MutableTrace -> m ()
-annotateTraceWithSystemInfo t = do
+-- TODO this will be really bad if used in propagation context.
+annotateSpanWithSystemInfo :: MonadIO m => MutableSpan -> m ()
+annotateSpanWithSystemInfo s = do
   metrics <- readRtsMetrics
   let (CPid pid) = currentProcessId
-  addTraceField t "proc.id" pid
-  addTraceFields t metrics
+  addSpanField s "sys.process_id" pid
+  addSpanFields s metrics
 
 currentProcessId :: ProcessID
 currentProcessId = unsafePerformIO getProcessID
