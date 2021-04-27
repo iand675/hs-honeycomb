@@ -228,5 +228,8 @@ instance HasSpanErrorAnnotators TraceContext where
 class HasTraceContext a where
   traceContextL :: Lens' a TraceContext
 
+instance HasTraceContext TraceContext where
+  traceContextL = lens id (\_ new -> new)
+
 asSimpleTraceContext :: (HasSpanErrorAnnotators env, HasServiceName env, HasTracer env, HasSpan env) => env -> TraceContext
 asSimpleTraceContext x = TraceContext (x ^. serviceNameL) (x ^. tracerL) (x ^. spanL) (x ^. spanErrorHandlerL)

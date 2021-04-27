@@ -52,17 +52,19 @@ import Yesod.Core
 import Yesod.Core.Handler
 import Yesod.Persist ( YesodPersist(..) )
 import Database.Persist.Postgresql
-    ( withPostgresqlConn, rawSql, Single, SqlBackend )
+    ( withPostgresqlConn, rawSql, Single, SqlBackend, createPostgresqlPool )
 import Lens.Micro (lens, (^.))
 import System.Environment ( getEnv )
 import Chronos (now)
 import Honeycomb.API.Markers
 import Honeycomb.Tracing (HasTraceContext(..), TraceContext(..))
+import Data.Pool (Pool)
+import Honeycomb.Tracing.Instrumentation.Persistent (runSqlPool)
 
 -- | This is my data type. There are many like it, but this one is mine.
 data Minimal = Minimal
   { minimalTraceContext :: TraceContext
-  , minimalSqlConn :: SqlBackend
+  , minimalSqlConn :: Pool SqlBackend
   }
 
 instance HasTraceContext Minimal where
@@ -79,7 +81,7 @@ instance YesodPersist Minimal where
   type YesodPersistBackend Minimal = SqlBackend
   runDB m = do
     app <- getYesod
-    runReaderT m (minimalSqlConn app)
+    runSqlPool m (minimalSqlConn app)
 
 
 getRootR :: Handler Text
@@ -120,6 +122,7 @@ main = do
           , endTime = Just t
           , message = Just "Starting minimal app", markerType = Just "app.launch"}) 
   runReaderT makeMarker c
-  runStdoutLoggingT $ withPostgresqlConn "host=localhost port=5432 user=postgres" $ \conn -> do
+  runStdoutLoggingT $ do
+    conn <- createPostgresqlPool "host=localhost port=5432 user=postgres" 5 
     app <- liftIO $ toWaiApp $ Minimal (TraceContext (traceConf ^. serviceNameL) traceConf EmptySpan []) conn 
     liftIO $ runEnv 3000 $ Wai.beelineMiddleware traceConf app

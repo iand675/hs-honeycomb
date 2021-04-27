@@ -48,6 +48,7 @@ dependencies:
 - microlens
 - microlens-mtl
 - mmorph
+- resource-pool
 # TODO split these out
 - conduit
 - warp
