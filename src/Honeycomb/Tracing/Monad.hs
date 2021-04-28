@@ -17,6 +17,7 @@ import Lens.Micro
 import Lens.Micro.Extras
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.Trans
+import Control.Monad.Except (ExceptT(..))
 
 class MonadIO m => MonadTrace m where
   askTraceContext :: m TraceContext 
@@ -35,6 +36,12 @@ class MonadIO m => MonadTrace m where
       localSpan (const s) n
 
 instance (MonadUnliftIO m, HasTraceContext env) => MonadTrace (ReaderT env m)
+instance MonadTrace m => MonadTrace (ExceptT e m) where
+  askTraceContext = lift askTraceContext
+  localTraceContext f (ExceptT m) = ExceptT $ localTraceContext f m
+  -- TODO I'm not sure whether this is quite the implementation we want, but it's okay enough to go on
+  -- for now
+  spanning n (ExceptT m) = ExceptT $ spanning n m
 
 askTrace :: (MonadTrace m) => m MutableTrace
 askTrace = view (spanL . traceL) <$> askTraceContext
