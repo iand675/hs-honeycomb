@@ -36,7 +36,7 @@ instance ToJSON Event where
 -- | Construct a 'Text' 'TB.Builder' corresponding to the ISO-8601
 --   encoding of the given 'Datetime'.
 builderRFC3339 :: Datetime -> TB.Builder
-builderRFC3339 dt = builder_YmdHMS (SubsecondPrecisionFixed 3) w3c dt <> "Z"
+builderRFC3339 dt = builder_YmdHMS (SubsecondPrecisionFixed 8) w3c dt <> "Z"
 
 -- | Construct 'Text' corresponding to the ISO-8601
 --   encoding of the given 'Datetime'.

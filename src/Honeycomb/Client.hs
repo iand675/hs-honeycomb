@@ -44,7 +44,6 @@ initializeHoneycomb conf = liftIO $ do
       actions <- mask_ $ liftIO $ do
         items <- atomically $ flushTBQueue buf
         -- TODO do something better than exception printing
-        print $ length items
         handle (\e -> print (e :: SomeException) *> throwIO e) $ sequence_ items
         pure items
       -- A little hack to retry outside of mask so that way we can cancel in between outbound calls

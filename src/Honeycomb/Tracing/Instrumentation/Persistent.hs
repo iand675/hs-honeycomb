@@ -96,18 +96,24 @@ runSqlPoolWithHooks
     -- exception is provided as a convenience - it is rethrown once this
     -- cleanup function is complete.
     -> m a
-runSqlPoolWithHooks r pconn i before after onException =
-    withRunInIO $ \runInIO ->
-    withResource pconn $ \baseConn -> do
-      conn <- runInIO $ wrapConnection (projectBackend baseConn)
-      UE.mask $ \restore -> do
-          _ <- restore $ runInIO $ before $ mkPersistBackend conn
-          a <- restore (runInIO (runReaderT r $ mkPersistBackend conn))
-              `UE.catchAny` \e -> do
+runSqlPoolWithHooks r pconn i before after onException = do
+  TraceContext{..} <- askTraceContext
+  withRunInIO $ \runInIO -> do
+    bracket 
+      (Raw.newSpan tcTracer (trace tcSpan) "runSqlPoolWithHooks" (Just $ spanId tcSpan) "acquireConnection")
+      Raw.closeSpan $ \acquireSpan -> do
+        withResource pconn $ \baseConn -> do
+          Raw.closeSpan acquireSpan
+          conn <- runInIO $ wrapConnection (projectBackend baseConn)
+          UE.mask $ \restore -> do
+            _ <- restore $ runInIO $ before $ mkPersistBackend conn
+            a <-
+              restore (runInIO (runReaderT r $ mkPersistBackend conn))
+                `UE.catchAny` \e -> do
                   _ <- restore $ runInIO $ onException (mkPersistBackend conn) e
                   UE.throwIO e
-          _ <- restore $ runInIO $ after (mkPersistBackend conn)
-          pure a
+            _ <- restore $ runInIO $ after (mkPersistBackend conn)
+            pure a
 
 
 
