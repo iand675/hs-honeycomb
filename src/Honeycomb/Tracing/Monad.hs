@@ -3,6 +3,7 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Honeycomb.Tracing.Monad where
 import Control.Monad.IO.Class
 import Control.Monad.Morph
@@ -42,6 +43,18 @@ instance MonadTrace m => MonadTrace (ExceptT e m) where
   -- TODO I'm not sure whether this is quite the implementation we want, but it's okay enough to go on
   -- for now
   spanning n (ExceptT m) = ExceptT $ spanning n m
+
+-- | Provides an empty trace context that doesn't do anything.
+newtype NoTraceT m a = NoTraceT { runNoTraceT :: m a }
+  deriving (Functor, Applicative, Monad, MonadIO, MonadUnliftIO)
+
+instance MonadTrans NoTraceT where
+  lift = NoTraceT
+
+instance MonadIO m => MonadTrace (NoTraceT m) where
+  askTraceContext = pure $ TraceContext "NoTraceT" undefined EmptySpan []
+  localTraceContext _ = id
+  spanning _ m = m
 
 askTrace :: (MonadTrace m) => m MutableTrace
 askTrace = view (spanL . traceL) <$> askTraceContext
