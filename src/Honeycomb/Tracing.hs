@@ -39,12 +39,12 @@ import Data.String (IsString)
 import Data.Hashable (Hashable)
 import Honeycomb.Types
 import Control.Monad.Primitive
+import Network.HTTP.Types (Header)
 
 data Tracer = forall sampler idGenerator. (Sampler IO sampler, TraceIdProvider idGenerator) =>
   Tracer
     { tracerHoneycombClient :: HoneycombClient
     , tracerServiceName :: ServiceName
-    , tracerPropagationCodecs :: [ConcreteCodec]
     , tracerSampler :: sampler
     , tracerIdGenerator :: idGenerator
     , tracerSpanPostProcessor :: Maybe (ImmutableSpan -> (Maybe Word64, HashMap Text Value))
