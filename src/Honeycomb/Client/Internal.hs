@@ -20,10 +20,9 @@ import Network.HTTP.Types
 import qualified Data.Text.Encoding as T
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as L
-import Lens.Micro
+import Control.Lens
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader.Class
-import Lens.Micro.Mtl (view)
 import UnliftIO.STM (TBQueue)
 
 data HoneycombClient = HoneycombClient

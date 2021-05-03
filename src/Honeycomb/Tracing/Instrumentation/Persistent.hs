@@ -21,7 +21,7 @@ import qualified Honeycomb.Tracing.Raw as Raw
 import UnliftIO
 import qualified Data.HashMap.Strict as H
 import Data.Aeson
-import Lens.Micro.Mtl (view)
+import Control.Lens
 import Honeycomb.Tracing.Monad (MonadTrace(..), askTrace, askSpan)
 import Control.Monad.Morph
 import Data.Maybe

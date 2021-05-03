@@ -9,7 +9,6 @@ import Honeycomb.Tracing.Monad
 import Control.Monad.Reader
 import qualified Data.HashMap.Strict as H
 import Data.Aeson ((.=))
-import Lens.Micro
 
 {-
 honeycombSpanScribe :: MonadTrace m => m Scribe

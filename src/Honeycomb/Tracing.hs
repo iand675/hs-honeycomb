@@ -34,9 +34,8 @@ import Honeycomb.Tracing.Sampling
 import Honeycomb.Tracing.Ids.TraceIdProvider
     ( SpanId, TraceId, TraceIdProvider(..) )
 import Honeycomb.Client.Internal
-import Lens.Micro
+import Control.Lens
 import Data.String (IsString)
-import Lens.Micro.Mtl (view)
 import Data.Hashable (Hashable)
 import Honeycomb.Types
 import Control.Monad.Primitive

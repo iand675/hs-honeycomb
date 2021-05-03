@@ -45,8 +45,7 @@ dependencies:
 - stm
 - uuid
 - auto-update
-- microlens
-- microlens-mtl
+- lens
 - mmorph
 - resource-pool
 # TODO split these out

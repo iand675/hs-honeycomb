@@ -25,7 +25,7 @@ import Yesod.Core.Types
       HandlerContents(..),
       ErrorResponse(..) )
 import Honeycomb.Tracing.Monad
-import Lens.Micro (lens, Lens', (.~))
+import Control.Lens
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (local)
 import qualified Honeycomb.Tracing.Raw as Raw

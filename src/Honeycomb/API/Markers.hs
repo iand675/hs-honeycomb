@@ -13,7 +13,7 @@ import Network.HTTP.Simple
 import Data.Aeson
 import Honeycomb.Client.Internal
 import Honeycomb.Types
-import Lens.Micro.Mtl (view)
+import Control.Lens (view)
 import Data.Int
 
 data Marker = Marker

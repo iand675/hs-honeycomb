@@ -25,9 +25,8 @@ import Honeycomb.Types
 import Honeycomb.API.Types
 import Network.HTTP.Simple
 import Network.HTTP.Types
-import Lens.Micro
+import Control.Lens ( (^.), to, view )
 import Control.Monad.Reader (MonadReader)
-import Lens.Micro.Mtl (view)
 
 
 data MalformedJSONResponse = MalformedJSONResponse

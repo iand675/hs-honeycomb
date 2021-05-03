@@ -21,8 +21,7 @@ import Network.HTTP.Client.TLS
 import UnliftIO.Async hiding (atomically)
 import UnliftIO
 import Control.Monad.Reader
-import Lens.Micro.Mtl (view)
-import Lens.Micro ((%~), (^.), (&))
+import Control.Lens ((%~), (^.), (&), view)
 import Control.Concurrent.STM (retry)
 import Control.Concurrent.STM.TBQueue hiding (newTBQueueIO)
 import Control.Concurrent

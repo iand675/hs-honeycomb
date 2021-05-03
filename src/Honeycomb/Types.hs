@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 module Honeycomb.Types where
+import Control.Lens (Lens', lens)
 import Data.ByteString.Char8 (ByteString)
 import Data.Text (Text)
 import Data.Word
-import Lens.Micro
 import Data.String (IsString)
 
 newtype DatasetName = DatasetName { fromDatasetName :: Text }

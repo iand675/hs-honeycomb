@@ -13,9 +13,8 @@ import Data.HashMap.Strict (HashMap)
 import Honeycomb.Tracing
 import qualified Honeycomb.Tracing.Raw as Raw
 import UnliftIO
+import Control.Lens
 import Control.Monad.Reader.Class
-import Lens.Micro
-import Lens.Micro.Extras
 import Control.Monad.Reader (ReaderT (runReaderT))
 import Control.Monad.Trans
 import Control.Monad.Except (ExceptT(..))
