@@ -78,7 +78,8 @@ instance FromJSON ExistingMarker where
 createMarker :: MonadHoneycomb env m => Marker -> m ExistingMarker
 createMarker m = do
   c <- view honeycombClientL
-  getResponseBody <$> post httpJSON ["1", "markers", fromDatasetName $ defaultDataset $ clientConfig c] [] m
+  let ds = fromDatasetName $ defaultDataset $ clientConfig c
+  getResponseBody <$> post httpJSON [uri|1/markers/{ds}|] [] m
 -- updateMarker :: Client -> Marker
 -- deleteMarker :: Client -> Marker
 -- listAllMarkers :: Client -> Marker

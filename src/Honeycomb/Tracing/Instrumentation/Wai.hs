@@ -8,7 +8,7 @@ import Data.Aeson
 import qualified Data.Text.Encoding as T
 import Data.Typeable ( typeOf )
 import Data.Vault.Lazy ( insert, lookup, newKey, Key )
-import Honeycomb.Tracing ( MutableSpan, MutableTrace, Tracer (tracerServiceName), tracerPropagationCodecs, recordBasicErrorHandler )
+import Honeycomb.Tracing ( MutableSpan, MutableTrace, Tracer (tracerServiceName), recordBasicErrorHandler )
 import Honeycomb.Tracing.Fields
     ( typeField,
       packageField,
@@ -44,6 +44,7 @@ import qualified Data.HashMap.Strict as H
 import UnliftIO ( SomeException, bracket )
 import Data.Text (Text)
 import Honeycomb.Tracing.Propagation
+import Network.HTTP.Types.Header
 
 traceKey :: Key MutableTrace
 traceKey = unsafePerformIO newKey
@@ -59,14 +60,17 @@ lookupTrace = Data.Vault.Lazy.lookup traceKey . vault
 lookupSpan :: Request -> Maybe MutableSpan
 lookupSpan = Data.Vault.Lazy.lookup spanKey . vault
 
-beelineMiddleware :: Tracer -> Middleware
-beelineMiddleware conf app req responder = runReaderT (do
+beelineMiddleware :: Tracer -> [PropagationCodec [Header]] -> Middleware
+beelineMiddleware conf supportedCodecs app req responder = runReaderT (do
   -- Inherit trace if a recognized trace format is hanging about
-  let propagatedInfo = getContextFromCodecs (tracerPropagationCodecs conf) (requestHeaders req)
+  let propagatedInfo = getContextFromCodecs supportedCodecs (requestHeaders req)
+      mparentId = case propagatedInfo of
+        Nothing -> Nothing
+        Just Context{..} -> Just propagatedParentId
   bracket (initializeTraceContext propagatedInfo) sendLocalTraceSpans $ \trace -> do
     -- Default to path for span name, but can be overridden
     let path = T.decodeUtf8 $ rawPathInfo req
-    spanning conf trace (tracerServiceName conf) Nothing {- <- TODO pull from headers? -} path [recordBasicErrorHandler] $ \span_ -> do
+    spanning conf trace (tracerServiceName conf) mparentId path [recordBasicErrorHandler] $ \span_ -> do
       addSpanFields span_ $ H.fromList
         [ (typeField, String "http_server")
         , (packageField, String "wai/warp")

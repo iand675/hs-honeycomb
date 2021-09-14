@@ -10,11 +10,10 @@ import Conduit (lift, MonadIO (liftIO))
 import Control.Monad.Reader
 import UnliftIO
 
-instance (MonadTrace m, MonadResource m) => MonadTrace (ConduitT i o m) where
+instance (MonadTrace m, MonadResource m, MonadUnliftIO m) => MonadTrace (ConduitT i o m) where
   askTraceContext = lift askTraceContext
-  -- TODO this might not always be a valid instance?
-  -- TODO support error annotations
   localTraceContext f = transPipe (localTraceContext f)
+  -- TODO support error annotations.
   spanning n m = do
     TraceContext{..} <- askTraceContext
     bracketP 

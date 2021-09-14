@@ -13,7 +13,6 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Honeycomb.Tracing
 import Honeycomb.Tracing.Raw
 
--- TODO this will be really bad if used in propagation context.
 annotateSpanWithSystemInfo :: MonadIO m => MutableSpan -> m ()
 annotateSpanWithSystemInfo s = do
   metrics <- readRtsMetrics

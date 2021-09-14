@@ -30,8 +30,7 @@ import Data.Text (Text)
 import Honeycomb.Client.Internal
 import Honeycomb.Tracing
 import Honeycomb.Tracing.Ids.TraceIdProvider
-import Lens.Micro hiding (view)
-import Lens.Micro.Mtl
+import Control.Lens hiding (Context)
 import Honeycomb.Client
 import Honeycomb.Tracing.Fields
 import Data.Word
@@ -39,21 +38,22 @@ import Control.Monad.Trans (lift)
 import Conduit (MonadTrans)
 import Honeycomb.Tracing.Propagation
 
+data HoneycombClientEvent
+  = UnclosedSpans [ImmutableSpan]
+  | EventSenderWorkerCrashed SomeException
+
+
 -- | Create the basic context necessary to create spans for a given trace
 initializeTraceContext :: (MonadIO m, MonadReader r m, HasTracer r) 
-  => PropagationContext -- ^ optionally initialize a trace with context from the outside world
+  => Maybe PropagationContext -- ^ optionally initialize a trace with context from the outside world
   -> m MutableTrace
 initializeTraceContext externalCtx = do
   Tracer{..} <- view tracerL
-  tId <- case externalCtx of
-    EmptyContext -> liftIO $ generateTraceId tracerIdGenerator
-    Context{..} -> pure propagatedTraceId
-  let fs = case externalCtx of
-        EmptyContext -> mempty
-        Context{..} -> propagatedTraceFields
-      ds = case externalCtx of
-        EmptyContext -> Nothing
-        Context{..} -> propagatedDataset
+  (tId, fs, ds) <- case externalCtx of
+    Nothing -> do
+      tId <- liftIO $ generateTraceId tracerIdGenerator
+      pure (tId, mempty, Nothing)
+    Just Context{..} -> pure (propagatedTraceId, propagatedTraceFields, propagatedDataset)
   liftIO $
     Trace tId tracerServiceName
       <$> liftIO (newIORef Nothing)
@@ -76,7 +76,7 @@ makeEvent traceFields (msampleRate, postprocessedSpanFields) Span{..} = do
         addParentId
           [ (spanNameField, String name),
             (serviceNameField, toJSON service),
-            (durationField, toJSON (((fromIntegral $ getTimespan $ width $ TimeInterval startT endT) / 1_000_000) :: Double)),
+            (durationField, toJSON ((fromIntegral ( getTimespan $ width $ TimeInterval startT endT) / 1_000_000) :: Double)),
             (spanIdField, toJSON spanId),
             (traceIdField, toJSON $ traceId trace)
             -- (metaSpanTypeField, String metaTypeSpanEventValue)
@@ -89,8 +89,7 @@ makeEvent traceFields (msampleRate, postprocessedSpanFields) Span{..} = do
     }
 
 -- | This technically only closes the trace in the local sense. Additional spans may
--- be sent to Honeycomb (e.g. from propagation) as long as they fall within the root
--- span's start/end times.
+-- be sent to Honeycomb (e.g. from propagation).
 sendLocalTraceSpans :: (MonadIO m, MonadReader env m, HasTracer env) => MutableTrace -> m ()
 sendLocalTraceSpans mutT = do
   tracer <- view tracerL

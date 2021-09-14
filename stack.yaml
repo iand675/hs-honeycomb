@@ -31,7 +31,7 @@ resolver: lts-17.9
 #   - wai
 packages:
 - .
-# - ../yesod/yesod-persistent
+- ../yesod/yesod-core
 # - ../persistent/persistent
 # - ../persistent/persistent-postgresql
 # - ../persistent/persistent-template
@@ -57,6 +57,8 @@ extra-deps:
   commit: 227d4119295c851ea25d54b0bafa2cc28c9e22f2
   subdirs:
     - yesod-persistent
+- random-1.2.0@sha256:30d72df4cc1d2fe2d445c88f0ee9d21965af7ce86660c43a6c32a6a1d90d51c9,6094
+- mwc-random-0.15.0.1
 # Override default flag values for local packages and extra-deps
 # flags: {}
 

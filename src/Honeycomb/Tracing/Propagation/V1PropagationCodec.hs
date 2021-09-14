@@ -16,39 +16,43 @@ import qualified Data.Aeson as A
 import Data.Bifunctor (second)
 import Honeycomb.Types
 import Data.List (intersperse)
+import Network.HTTP.Types
+import Control.Lens hiding (Context)
 
-data V1PropagationCodec = V1PropagationCodec
-
-instance PropagationCodec V1PropagationCodec where
-  getName _ = "V1PropagationCodec"
-  decode _ hs = case lookup "x-honeycomb-trace" hs of
-    Nothing -> EmptyContext
-    Just str -> case second C.tail $ C.break (== ';') str of
-      ("1", str') -> case C.split ',' str' of
-        rawEntries -> case map (second C.tail . C.break (== '=')) rawEntries of
-          entries ->
-            fromMaybe EmptyContext $ do
-              propagatedTraceId <- TraceId . decodeUtf8 <$> lookup "trace_id" entries
-              propagatedParentId <- SpanId . decodeUtf8 <$> lookup "span_id" entries
-              let propagatedDataset = DatasetName . decodeUtf8 <$> lookup "dataset" entries
-              let propagatedTraceFields = fromMaybe H.empty $ do
-                    context <- lookup "context" entries
-                    decodeStrict' =<< case convertFromBase Base64 context of
-                      Left _ -> Nothing
-                      Right ok -> Just ok
-              pure Context{..}
-      (_, _) -> EmptyContext
-  encode _ EmptyContext = []
-  encode _ Context{..} = [("x-honeycomb-trace", L.toStrict $ B.toLazyByteString encoded)]
-    where
-      encoded :: B.Builder
-      encoded = B.shortByteString "1;" <> mconcat 
-        ( intersperse (B.charUtf8 ',')
-          [ B.shortByteString "trace_id=" <> B.byteString (encodeUtf8 (fromTraceId propagatedTraceId))
-          , B.shortByteString "span_id=" <> B.byteString (encodeUtf8 (fromSpanId propagatedParentId))
-          , maybe mempty (\ds -> B.shortByteString "dataset=" <> B.byteString (encodeUtf8 $ fromDatasetName ds)) propagatedDataset
-          , if H.null propagatedTraceFields
-            then mempty
-            else B.shortByteString "context=" <> B.byteString (convertToBase Base64 $ L.toStrict (A.encode propagatedTraceFields))
-          ]
-        )
+v1PropagationCodec :: PropagationCodec [Header]
+v1PropagationCodec = CodecBuilder
+  { name = id -- TODO "v1PropagationCodec"
+  , codec = prism' encode decode
+  }
+  where
+    encode :: PropagationContext -> [Header]
+    encode Context{..} = [("x-honeycomb-trace", L.toStrict $ B.toLazyByteString encoded)]
+      where
+        encoded :: B.Builder
+        encoded = B.shortByteString "1;" <> mconcat 
+          ( intersperse (B.charUtf8 ',')
+            [ B.shortByteString "trace_id=" <> B.byteString (encodeUtf8 (fromTraceId propagatedTraceId))
+            , B.shortByteString "span_id=" <> B.byteString (encodeUtf8 (fromSpanId propagatedParentId))
+            , maybe mempty (\ds -> B.shortByteString "dataset=" <> B.byteString (encodeUtf8 $ fromDatasetName ds)) propagatedDataset
+            , if H.null propagatedTraceFields
+              then mempty
+              else B.shortByteString "context=" <> B.byteString (convertToBase Base64 $ L.toStrict (A.encode propagatedTraceFields))
+            ]
+          )
+    decode :: [Header] -> Maybe PropagationContext
+    decode hs = do
+      str <- lookup "x-honeycomb-trace" hs
+      case second C.tail $ C.break (== ';') str of
+        ("1", str') -> case C.split ',' str' of
+          rawEntries -> case map (second C.tail . C.break (== '=')) rawEntries of
+            entries -> do
+                propagatedTraceId <- TraceId . decodeUtf8 <$> lookup "trace_id" entries
+                propagatedParentId <- SpanId . decodeUtf8 <$> lookup "span_id" entries
+                let propagatedDataset = DatasetName . decodeUtf8 <$> lookup "dataset" entries
+                let propagatedTraceFields = fromMaybe H.empty $ do
+                      context <- lookup "context" entries
+                      decodeStrict' =<< case convertFromBase Base64 context of
+                        Left _ -> Nothing
+                        Right ok -> Just ok
+                pure Context{..}
+        (_, _) -> Nothing

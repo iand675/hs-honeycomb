@@ -76,5 +76,14 @@ post f pathPieces hs x = do
         }
   f req
 
+get :: (MonadIO m, MonadHoneycomb env m, FromJSON a) => (Request -> m (Response b)) -> [Text] -> [(Text, Text)] -> m a
+get = undefined
+
+put :: (MonadIO m, MonadHoneycomb env m, FromJSON a) => (Request -> m (Response b)) -> [Text] -> [(Text, Text)] -> m a
+put = undefined
+
+delete :: (MonadIO m, MonadHoneycomb env m, FromJSON a) => (Request -> m (Response b)) -> [Text] -> [(Text, Text)] -> m a
+delete = undefined
+
 decodeJSON :: FromJSON a => Response L.ByteString -> Response (Either String a)
 decodeJSON = fmap eitherDecode

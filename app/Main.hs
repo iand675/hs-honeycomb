@@ -4,6 +4,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DataKinds #-}
 module Main where
 
 import Control.Monad
@@ -36,7 +42,7 @@ import Honeycomb.Tracing.Instrumentation.Wai as Wai
 import Honeycomb.Tracing.Instrumentation.Persistent as Persistent
     ( wrapConnection )
 import Honeycomb.Tracing.Instrumentation.HttpClientSimple
-    ( httpNoBody )
+    ( httpNoBody, httpJSON, getResponseBody )
 import Honeycomb.Tracing.Instrumentation.Yesod as Yesod
     ( beelineMiddleware )
 import Network.Wai.Handler.Warp ( runEnv )
@@ -48,31 +54,51 @@ import Yesod.Core
       mkYesod,
       MonadIO(liftIO),
       RenderRoute(renderRoute),
-      Yesod(yesodMiddleware) )
+      Yesod(yesodMiddleware), Route )
 import Yesod.Core.Handler
 import Yesod.Persist ( YesodPersist(..) )
 import Database.Persist.Postgresql
     ( withPostgresqlConn, rawSql, Single, SqlBackend, createPostgresqlPool )
-import Lens.Micro (lens, (^.))
+import Control.Lens (lens, (^.))
 import System.Environment ( getEnv )
 import Chronos (now)
 import Honeycomb.API.Markers
 import Honeycomb.Tracing (HasTraceContext(..), TraceContext(..))
 import Data.Pool (Pool)
 import Honeycomb.Tracing.Instrumentation.Persistent (runSqlPool)
+import Deriving.Aeson
+import GHC.Generics
+import Network.HTTP.Types (Header)
+import Network.Wai (requestHeaders)
+import Honeycomb.Tracing.Propagation
+import Honeycomb.Tracing.Propagation.V1PropagationCodec
 
 -- | This is my data type. There are many like it, but this one is mine.
 data Minimal = Minimal
   { minimalTraceContext :: TraceContext
   , minimalSqlConn :: Pool SqlBackend
+  , minimalHttpCodecs :: [PropagationCodec [Header]]
   }
 
 instance HasTraceContext Minimal where
   traceContextL = lens minimalTraceContext (\m t -> m { minimalTraceContext = t })
 
+instance HasCodecs Minimal [Header] where
+  codecsL = lens minimalHttpCodecs (\m c -> m { minimalHttpCodecs = c })
+
 mkYesod "Minimal" [parseRoutes|
-    / RootR GET
+/ RootR GET
+/admin AdminR:
+  /woo/#{userId::Int} AdminIndexR GET
+/ping PingR GET
+/pong PongR GET
 |]
+
+deriving instance Generic AdminR
+deriving instance Generic (Route Minimal)
+-- TODO we could do better json instances
+deriving via CustomJSON '[SumUntaggedValue] AdminR instance ToJSON AdminR
+deriving via CustomJSON '[SumUntaggedValue] (Route Minimal) instance ToJSON (Route Minimal)
 
 instance Yesod Minimal where
   yesodMiddleware = Yesod.beelineMiddleware . defaultYesodMiddleware
@@ -109,11 +135,27 @@ getRootR = do
   pure ("Hello, " <> T.pack (show result))
 
 
+getAdminR :: Handler Text
+getAdminR = pure "ADMIN"
+
+getAdminIndexR :: Int -> Handler Text
+getAdminIndexR x = pure ("ADMIN_WOO" <> T.pack (show x))
+
+getPingR :: Handler Value
+getPingR = do
+  getResponseBody <$> httpJSON "http://localhost:3000/pong"
+
+getPongR :: Handler Value
+getPongR = do
+  req <- waiRequest
+  liftIO $ print $ requestHeaders req
+  pure $ object ["neat" .= True]
+
 main :: IO ()
 main = do
   writeKey <- getEnv "HONEYCOMB_TEAM_WRITE_KEY"
   c <- initializeHoneycomb $ config (T.pack writeKey) (DatasetName "testing-client")
-  let traceConf = Tracer c "testing-wai" [] Always UUIDGenerator Nothing
+  let traceConf = Tracer c "testing-wai" Always UUIDGenerator Nothing
   putStrLn "Running"
   t <- now
   let makeMarker = createMarker 
@@ -124,5 +166,6 @@ main = do
   runReaderT makeMarker c
   runStdoutLoggingT $ do
     conn <- createPostgresqlPool "host=localhost port=5432 user=postgres" 5 
-    app <- liftIO $ toWaiApp $ Minimal (TraceContext (traceConf ^. serviceNameL) traceConf EmptySpan []) conn 
-    liftIO $ runEnv 3000 $ Wai.beelineMiddleware traceConf app
+    let minimal = Minimal (TraceContext (traceConf ^. serviceNameL) traceConf EmptySpan []) conn [v1PropagationCodec]
+    app <- liftIO $ toWaiApp minimal
+    liftIO $ runEnv 3000 $ Wai.beelineMiddleware traceConf (minimalHttpCodecs minimal) app

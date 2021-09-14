@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Honeycomb.Tracing.Instrumentation.HttpClient 
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
+module Honeycomb.Tracing.Instrumentation.HttpClient
   ( withResponse
   , httpLbs
   , httpNoBody
@@ -10,6 +12,7 @@ module Honeycomb.Tracing.Instrumentation.HttpClient
   , addRequestFields
   , addResponseFields
   , clientRequestErrorHandler
+  , propagateTraceInfo
   ) where
 import Control.Monad.IO.Class
 import qualified Data.HashMap.Strict as H
@@ -20,11 +23,14 @@ import Honeycomb.Tracing.Fields
 import Network.HTTP.Types.Header (hContentType)
 import Data.Aeson (toJSON, Value (String))
 import Data.Text.Encoding (decodeUtf8)
-import UnliftIO (SomeException, MonadUnliftIO (withRunInIO))
+import UnliftIO (SomeException, MonadUnliftIO (withRunInIO), readIORef)
 import qualified Data.ByteString.Lazy as L
-import Network.HTTP.Types (statusCode)
+import Network.HTTP.Types (Header, statusCode)
 import Data.Typeable (typeOf)
 import Control.Monad.Reader
+import Honeycomb.Tracing
+import qualified Honeycomb.Tracing.Propagation as Propagation
+import Control.Lens (view)
 
 
 addRequestFields :: MonadTrace m => Request -> m ()
@@ -53,34 +59,51 @@ clientRequestErrorHandler e = do
   addSpanField clientRequestErrorField $ show $ typeOf e
   addSpanField clientRequestErrorDetailField $ show e
 
-withResponse :: (MonadUnliftIO m, MonadTrace m) => Request -> Manager -> (Response BodyReader -> m a) -> m a
+withResponse :: (MonadUnliftIO m, MonadTrace m, MonadReader env m, Propagation.HasCodecs env [Header]) => Request -> Manager -> (Response BodyReader -> m a) -> m a
 withResponse req m f = spanning "withResponse" $ do
   addRequestFields req
-  withRunInIO $ \runInIO -> 
-    HTTP.withResponse req m $ \resp -> runInIO $ do
+  req' <- propagateTraceInfo req
+  withRunInIO $ \runInIO ->
+    HTTP.withResponse req' m $ \resp -> runInIO $ do
       addResponseFields resp
       f resp
 
-httpLbs :: (MonadTrace m) => Request -> Manager -> m (Response L.ByteString) 
+httpLbs :: (MonadTrace m, MonadReader env m, Propagation.HasCodecs env [Header]) => Request -> Manager -> m (Response L.ByteString)
 httpLbs req m = spanning "httpLbs" $ do
   addRequestFields req
-  resp <- liftIO $ HTTP.httpLbs req m
+  req' <- propagateTraceInfo req
+  resp <- liftIO $ HTTP.httpLbs req' m
   addResponseFields resp
   pure resp
 
-httpNoBody :: (MonadTrace m) => Request -> Manager -> m (Response ()) 
+httpNoBody :: (MonadTrace m, MonadReader env m, Propagation.HasCodecs env [Header]) => Request -> Manager -> m (Response ())
 httpNoBody req m = spanning "httpNoBody" $ do
   addRequestFields req
-  resp <- liftIO $ HTTP.httpNoBody req m
+  req' <- propagateTraceInfo req
+  resp <- liftIO $ HTTP.httpNoBody req' m
   addResponseFields resp
   pure resp
 
-responseOpen :: (MonadTrace m) => Request -> Manager -> m (Response BodyReader)
+responseOpen :: (MonadTrace m, MonadReader env m, Propagation.HasCodecs env [Header]) => Request -> Manager -> m (Response BodyReader)
 responseOpen req m = spanning "responseOpen" $ do
   addRequestFields req
-  resp <- liftIO $ HTTP.responseOpen req m
+  req' <- propagateTraceInfo req
+  resp <- liftIO $ HTTP.responseOpen req' m
   addResponseFields resp
   pure resp
 
 responseClose :: (MonadTrace m) => Response a -> m ()
 responseClose resp = spanning "responseClose" $ liftIO $ HTTP.responseClose resp
+
+propagateTraceInfo :: (MonadTrace m, MonadReader env m, Propagation.HasCodecs env [Header]) => Request -> m Request
+propagateTraceInfo req = do
+  TraceContext{..} <- askTraceContext
+  cs :: [Propagation.PropagationCodec [Header]] <- view Propagation.codecsL
+  case tcSpan of
+    EmptySpan -> pure req
+    Span{..} -> do
+      fs <- readIORef $ traceFields trace
+      -- TODO do the right dataset
+      let propCtxt = Propagation.Context spanId (traceId trace) Nothing fs
+      let encodedCtx = concatMap (`Propagation.encode` propCtxt) cs
+      pure (req { requestHeaders = (encodedCtx :: [Header]) <> requestHeaders req })

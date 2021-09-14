@@ -69,6 +69,20 @@ packages:
     subdir: yesod-persistent
     git: git@github.com:iand675/yesod
     commit: 227d4119295c851ea25d54b0bafa2cc28c9e22f2
+- completed:
+    hackage: random-1.2.0@sha256:30d72df4cc1d2fe2d445c88f0ee9d21965af7ce86660c43a6c32a6a1d90d51c9,6094
+    pantry-tree:
+      size: 1259
+      sha256: 92b5a834ba603ee4d006968a75847f4fd93a566b8a96e1b463b8229f8ce9961d
+  original:
+    hackage: random-1.2.0@sha256:30d72df4cc1d2fe2d445c88f0ee9d21965af7ce86660c43a6c32a6a1d90d51c9,6094
+- completed:
+    hackage: mwc-random-0.15.0.1@sha256:841c86f132c45cb81116e1d3a8a150cecc27820c2b4e38f8cf86e3fe7735c2ab,3370
+    pantry-tree:
+      size: 721
+      sha256: 718315c0ac2c509ae3d7e473727804f15a502461b6c71603dc461804377e0c7c
+  original:
+    hackage: mwc-random-0.15.0.1
 snapshots:
 - completed:
     size: 567037

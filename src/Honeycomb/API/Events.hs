@@ -51,7 +51,7 @@ sendEvent :: (MonadHoneycomb client m) => Event -> m ()
 sendEvent e = do
   client <- view honeycombClientL
   let ds = client ^. configL . to defaultDataset
-  r <- post httpLBS ["1", "events", fromDatasetName ds] hs $ eventData e
+  r <- post httpLBS [uri|1/events/{ds}|] hs $ eventData e
   case (statusCode $ getResponseStatus r, getResponseBody r) of
     (400, "unknown API key - check your credentials") -> throw UnknownApiKey
     (400, "request body is too large") -> throw RequestBodyTooLarge
@@ -92,7 +92,8 @@ instance FromJSON BatchResponse where
 sendBatchedEvents' :: (MonadHoneycomb client m) => BatchOptions -> Vector Event -> m (Vector BatchResponse)
 sendBatchedEvents' _ events = do
   config <- view (honeycombClientL . configL)
-  r <- post httpLBS ["1", "batch", fromDatasetName $ defaultDataset config] [] events
+  let ds = defaultDataset config
+  r <- post httpLBS [uri|1/batch/{ds}|] [] events
   case getResponseBody $ decodeJSON r of
     Left err -> throw $ MalformedJSONResponse err (getResponseBody r)
     Right ok -> pure ok

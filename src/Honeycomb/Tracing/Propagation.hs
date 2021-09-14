@@ -1,16 +1,28 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeFamilies #-}
-module Honeycomb.Tracing.Propagation where
+{-# LANGUAGE MultiParamTypeClasses #-}
+module Honeycomb.Tracing.Propagation 
+  ( PropagationContext(..)
+  , encode
+  , CodecBuilder(..)
+  , HasCodecs(..)
+  , PropagationCodec
+  , HTTPCodec -- Perhaps the most common means of propagation
+  , getContextFromCodecs
+  ) where
 import Data.Aeson ( Value )
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)
 import Network.HTTP.Types
 import Honeycomb.Tracing.Ids.TraceIdProvider
 import Honeycomb.Types (DatasetName)
+import Prelude hiding (id, (.))
+import Control.Category
+import Control.Lens hiding (Context)
+import Data.Foldable (asum)
 
 data PropagationContext
-  = EmptyContext
-  | Context 
+  = Context 
       { propagatedParentId :: SpanId
       , propagatedTraceId :: TraceId
       , propagatedDataset :: Maybe DatasetName
@@ -18,31 +30,26 @@ data PropagationContext
       } deriving (Show, Eq, Ord)
 
 
--- TODO the header dependency here isn't ideal
-class PropagationCodec a where
-  getName :: a -> Text
-  decode :: a -> [Header] -> PropagationContext
-  encode :: a -> PropagationContext -> [Header]
+type DList a = [a] -> [a]
 
-data ConcreteCodec = forall a. PropagationCodec a => ConcreteCodec
-  { codec :: a
+data CodecBuilder a b = CodecBuilder
+  { name :: DList Text
+  , codec :: APrism' a b
   }
 
-instance PropagationCodec ConcreteCodec where
-  getName (ConcreteCodec c) = getName c
-  decode (ConcreteCodec c) = decode c
-  encode (ConcreteCodec c) = encode c
+type PropagationCodec serializedFormat = CodecBuilder serializedFormat PropagationContext
 
-instance PropagationCodec () where
-  getName () = "()"
-  decode () _ = EmptyContext
-  encode _ _ = []
+instance Category CodecBuilder where
+  id = CodecBuilder id id
+  (CodecBuilder ln lc) . (CodecBuilder rn rc) = CodecBuilder (ln . rn) (clonePrism rc . clonePrism lc)
 
-isPropagated :: PropagationContext -> Bool
-isPropagated EmptyContext = False
-isPropagated Context{} = True
+type HTTPCodec = PropagationCodec [Header]
 
-getContextFromCodecs :: PropagationCodec codec => [codec] -> [Header] -> PropagationContext
-getContextFromCodecs cs hs = case filter isPropagated $ map (`decode` hs) cs of
-  [] -> EmptyContext
-  (c:_) -> c
+class HasCodecs env serializedFormat where
+  codecsL :: Lens' env [PropagationCodec serializedFormat]
+
+getContextFromCodecs :: [PropagationCodec serializedFormat] -> serializedFormat -> Maybe PropagationContext
+getContextFromCodecs cs serialized = asum $ map (\x -> serialized ^? clonePrism (codec x)) cs
+
+encode :: PropagationCodec serializedFormat -> PropagationContext -> serializedFormat
+encode (CodecBuilder _ codec) = review (clonePrism codec)
