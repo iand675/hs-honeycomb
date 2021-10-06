@@ -12,6 +12,7 @@ import Data.Aeson (Value, ToJSON, FromJSON, eitherDecode, encode)
 import Data.HashMap.Strict as S
 import Data.Text (Text)
 import Data.Word (Word64)
+import qualified Honeycomb.Config as Config
 import Network.HTTP.Client
 import System.Random.MWC
 import Honeycomb.Types
@@ -20,10 +21,12 @@ import Network.HTTP.Types
 import qualified Data.Text.Encoding as T
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as L
-import Control.Lens
+import Lens.Micro
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader.Class
 import UnliftIO.STM (TBQueue)
+import Lens.Micro.Extras
+import Honeycomb.Config
 
 data HoneycombClient = HoneycombClient
   { clientConfig :: Config
@@ -48,18 +51,18 @@ instance HasConfig HoneycombClient where
 type MonadHoneycomb env m = (MonadIO m, HasHoneycombClient env, MonadReader env m)
 
 data Event = Event
-  { _fields :: S.HashMap Text Value
-  , _teamWriteKey :: Maybe Text
-  , _dataset :: Maybe DatasetName
-  , _apiHost :: Maybe Text
-  , _sampleRate :: Maybe Word64
-  , _timestamp :: Maybe Time
+  { fields :: S.HashMap Text Value
+  , teamWriteKey :: Maybe Text
+  , dataset :: Maybe DatasetName
+  , apiHost :: Maybe Text
+  , sampleRate :: Maybe Word64
+  , timestamp :: Maybe Time
   }
 
 
 post :: (MonadIO m, MonadHoneycomb env m, ToJSON a) => (Request -> m (Response b)) -> [Text] -> RequestHeaders -> a -> m (Response b)
 post f pathPieces hs x = do
-  Config{..} <- view (honeycombClientL . configL)
+  Config{..} <- asks (view (honeycombClientL . configL))
   let req = defaultRequest 
         { method = methodPost
         , host = "api.honeycomb.io"
@@ -67,7 +70,7 @@ post f pathPieces hs x = do
         , path = T.encodeUtf8 $ T.intercalate "/" pathPieces
         , secure = True
         , requestHeaders = hs ++
-            [ (hUserAgent, "libhoneycomb-haskell/0.1")
+            [ (hUserAgent, "libhoneycomb-haskell/0.0.0.1")
             , (hContentType, "application/json")
             , ("X-Honeycomb-Team", T.encodeUtf8 teamWritekey)
             ]

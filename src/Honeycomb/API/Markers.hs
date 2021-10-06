@@ -13,8 +13,10 @@ import Network.HTTP.Simple
 import Data.Aeson
 import Honeycomb.Client.Internal
 import Honeycomb.Types
-import Control.Lens (view)
 import Data.Int
+import Lens.Micro.Extras (view)
+import Control.Monad.Reader (asks)
+import Honeycomb.Config (defaultDataset)
 
 data Marker = Marker
   { startTime :: Maybe Time
@@ -77,9 +79,9 @@ instance FromJSON ExistingMarker where
 -- TODO improve error handling
 createMarker :: MonadHoneycomb env m => Marker -> m ExistingMarker
 createMarker m = do
-  c <- view honeycombClientL
+  c <- asks (view honeycombClientL)
   let ds = fromDatasetName $ defaultDataset $ clientConfig c
-  getResponseBody <$> post httpJSON [uri|1/markers/{ds}|] [] m
+  getResponseBody <$> post httpJSON ["1", "markers", "ds"] [] m
 -- updateMarker :: Client -> Marker
 -- deleteMarker :: Client -> Marker
 -- listAllMarkers :: Client -> Marker

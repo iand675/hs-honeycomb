@@ -3,89 +3,10 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages:
-- completed:
-    subdir: persistent
-    name: persistent
-    version: 2.13.0.0
-    git: git@github.com:iand675/persistent.git
-    pantry-tree:
-      size: 3821
-      sha256: 38fadf2f72f8d5b28c4673e43fa53c3bf551ff98e14f9f806ecebd94843a3c5f
-    commit: 51ca558031027d4886bb05adf4a04cea39330202
-  original:
-    subdir: persistent
-    git: git@github.com:iand675/persistent.git
-    commit: 51ca558031027d4886bb05adf4a04cea39330202
-- completed:
-    subdir: persistent-postgresql
-    name: persistent-postgresql
-    version: 2.13.0.0
-    git: git@github.com:iand675/persistent.git
-    pantry-tree:
-      size: 1028
-      sha256: 1b7522da9f0ad1d511add84f0bb055ea962bf3ccc5f6e625355fbef75f87a4df
-    commit: 51ca558031027d4886bb05adf4a04cea39330202
-  original:
-    subdir: persistent-postgresql
-    git: git@github.com:iand675/persistent.git
-    commit: 51ca558031027d4886bb05adf4a04cea39330202
-- completed:
-    subdir: persistent-template
-    name: persistent-template
-    version: 2.13.0.0
-    git: git@github.com:iand675/persistent.git
-    pantry-tree:
-      size: 267
-      sha256: 98f110a89937c713c5e595be42bad3b4742cec0380d031a9f4644f28f63a1604
-    commit: 51ca558031027d4886bb05adf4a04cea39330202
-  original:
-    subdir: persistent-template
-    git: git@github.com:iand675/persistent.git
-    commit: 51ca558031027d4886bb05adf4a04cea39330202
-- completed:
-    subdir: persistent-qq
-    name: persistent-qq
-    version: 2.12.0.0
-    git: git@github.com:iand675/persistent.git
-    pantry-tree:
-      size: 641
-      sha256: 1e82d4e985d9f9a429b76ed0b6917dc5b797a37a997c234f48c3ade71248443e
-    commit: 51ca558031027d4886bb05adf4a04cea39330202
-  original:
-    subdir: persistent-qq
-    git: git@github.com:iand675/persistent.git
-    commit: 51ca558031027d4886bb05adf4a04cea39330202
-- completed:
-    subdir: yesod-persistent
-    name: yesod-persistent
-    version: 1.6.0.7
-    git: git@github.com:iand675/yesod
-    pantry-tree:
-      size: 497
-      sha256: a12b2b318cd2d2cb912ed3fa0c247ef767ae9565940cd75cb3e4c71cf48dbb07
-    commit: 227d4119295c851ea25d54b0bafa2cc28c9e22f2
-  original:
-    subdir: yesod-persistent
-    git: git@github.com:iand675/yesod
-    commit: 227d4119295c851ea25d54b0bafa2cc28c9e22f2
-- completed:
-    hackage: random-1.2.0@sha256:30d72df4cc1d2fe2d445c88f0ee9d21965af7ce86660c43a6c32a6a1d90d51c9,6094
-    pantry-tree:
-      size: 1259
-      sha256: 92b5a834ba603ee4d006968a75847f4fd93a566b8a96e1b463b8229f8ce9961d
-  original:
-    hackage: random-1.2.0@sha256:30d72df4cc1d2fe2d445c88f0ee9d21965af7ce86660c43a6c32a6a1d90d51c9,6094
-- completed:
-    hackage: mwc-random-0.15.0.1@sha256:841c86f132c45cb81116e1d3a8a150cecc27820c2b4e38f8cf86e3fe7735c2ab,3370
-    pantry-tree:
-      size: 721
-      sha256: 718315c0ac2c509ae3d7e473727804f15a502461b6c71603dc461804377e0c7c
-  original:
-    hackage: mwc-random-0.15.0.1
+packages: []
 snapshots:
 - completed:
-    size: 567037
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/17/9.yaml
-    sha256: d7d8d5106e53d1669964bd8bd2b0f88a5ad192d772f5376384b76738fd992311
-  original: lts-17.9
+    size: 587113
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/7.yaml
+    sha256: c8617e042150e4bf412d011c234aba6189f789d0cd2bd4f1a1a9ca9a0ef5d042
+  original: lts-18.7
