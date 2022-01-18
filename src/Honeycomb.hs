@@ -14,6 +14,7 @@ module Honeycomb
   ( 
   -- * Initializing and shutting down a 'HoneycombClient'
     HoneycombClient
+  , withHoneycomb
   , initializeHoneycomb
   , Config.config
   , shutdownHoneycomb
