@@ -3,12 +3,10 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 71e86a9d866e470b3be18e84cf0f065d7cd0e6d870980972dc38f8eb2488fd6a
 
 name:           honeycomb
 version:        0.0.0.3
-description:    Please see the README on GitHub at <https://github.com/githubuser/honeycomb#readme>
+description:    Please see the README on GitHub at <https://github.com/iand675/honeycomb#readme>
 homepage:       https://github.com/iand675/hs-honeycomb#readme
 bug-reports:    https://github.com/iand675/hs-honeycomb/issues
 author:         Ian Duncan
@@ -62,11 +60,8 @@ library
     , http-conduit
     , http-types
     , microlens
-    , mmorph
-    , monad-control
     , mtl
     , mwc-random
-    , profunctors
     , random >=1.2
     , resource-pool
     , stm
@@ -104,11 +99,8 @@ test-suite honeycomb-test
     , http-conduit
     , http-types
     , microlens
-    , mmorph
-    , monad-control
     , mtl
     , mwc-random
-    , profunctors
     , random >=1.2
     , resource-pool
     , stm

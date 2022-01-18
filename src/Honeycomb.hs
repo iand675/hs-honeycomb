@@ -14,6 +14,7 @@ module Honeycomb
   ( 
   -- * Initializing and shutting down a 'HoneycombClient'
     HoneycombClient
+  , withHoneycomb
   , initializeHoneycomb
   , Config.config
   , shutdownHoneycomb
@@ -26,24 +27,25 @@ module Honeycomb
   , HasHoneycombClient(..)
   ) where
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.IO.Class
+import Control.Applicative (Alternative(..))
+import Control.Exception (SomeException(..))
+import Control.Monad (replicateM, forever, void, when)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.HashMap.Strict as S
-import Data.Maybe
-import System.Random.MWC
+-- import Data.Maybe
+import System.Random.MWC (createSystemRandom, uniformR)
 import qualified Honeycomb.Config as Config
 import Honeycomb.Types
 import Honeycomb.Client.Internal
 import qualified Honeycomb.API.Events as API
 import qualified Honeycomb.API.Types as API
-import Network.HTTP.Client.TLS
+-- import Network.HTTP.Client.TLS
 import UnliftIO.Async hiding (atomically)
-import UnliftIO
-import Control.Monad.Reader
+import UnliftIO (MonadUnliftIO(..), bracket, mask_, atomically, handle, throwIO, newTBQueueIO)
+import Control.Monad.Reader (runReaderT)
 import Control.Concurrent.STM (retry)
 import Control.Concurrent.STM.TBQueue hiding (newTBQueueIO)
-import Control.Concurrent
+import Control.Concurrent (getNumCapabilities)
 import Lens.Micro ((%~), (^.), (&))
 import Lens.Micro.Extras (view)
 
@@ -74,6 +76,13 @@ initializeHoneycomb conf = liftIO $ do
 
 shutdownHoneycomb :: MonadIO m => HoneycombClient -> m ()
 shutdownHoneycomb = mapM_ cancel . clientWorkers
+
+-- | Memory bracket around 'initializeHoneycomb' and 'shutdownHoneycomb'
+withHoneycomb :: MonadUnliftIO m =>
+                 Config.Config
+              -> (HoneycombClient -> m a) -- ^ User program goes in here
+              -> m a
+withHoneycomb conf = bracket (initializeHoneycomb conf) shutdownHoneycomb
 
 event :: Event
 event = Event

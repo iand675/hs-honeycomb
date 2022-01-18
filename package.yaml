@@ -17,7 +17,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/honeycomb#readme>
+description:         Please see the README on GitHub at <https://github.com/iand675/honeycomb#readme>
 
 default-extensions:
 - GADTs
@@ -29,7 +29,6 @@ dependencies:
 - base >= 4.7 && < 5
 - async
 - unliftio
-- monad-control
 - chronos
 - aeson
 - mtl
@@ -49,9 +48,8 @@ dependencies:
 - uuid
 - auto-update
 - microlens
-- mmorph
 - resource-pool
-- profunctors
+
 
 library:
   source-dirs: src
