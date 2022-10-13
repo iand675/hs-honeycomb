@@ -35,7 +35,7 @@ data HoneycombClient = HoneycombClient
   -- TODO this respects dispatching to custom host/dataset/writekey/etc, but needs a means of
   -- using the bulk events API instead of dispatching a bunch of single event calls.
   , clientEventBuffer :: TBQueue (IO ())
-  -- , clientQueueMap :: Map ThreadId 
+  -- , clientQueueMap :: Map ThreadId
   , clientWorkers :: [Async ()]
   }
 
@@ -63,7 +63,7 @@ data Event = Event
 post :: (MonadIO m, MonadHoneycomb env m, ToJSON a) => (Request -> m (Response b)) -> [Text] -> RequestHeaders -> a -> m (Response b)
 post f pathPieces hs x = do
   Config{..} <- asks (view (honeycombClientL . configL))
-  let req = defaultRequest 
+  let req = defaultRequest
         { method = methodPost
         , host = "api.honeycomb.io"
         , port = 443
