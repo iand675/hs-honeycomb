@@ -11,7 +11,7 @@ Portability : Portable
 Warning, not all configuration options actually do what they claim yet.
 -}
 module Honeycomb
-  ( 
+  (
   -- * Initializing and shutting down a 'HoneycombClient'
     HoneycombClient
   , initializeHoneycomb
@@ -46,6 +46,7 @@ import Control.Concurrent.STM.TBQueue hiding (newTBQueueIO)
 import Control.Concurrent
 import Lens.Micro ((%~), (^.), (&))
 import Lens.Micro.Extras (view)
+import qualified Data.Aeson.KeyMap as KeyMap
 
 initializeHoneycomb :: MonadIO m => Config.Config -> m HoneycombClient
 initializeHoneycomb conf = liftIO $ do
@@ -99,7 +100,7 @@ send hasC e = do
       x <- uniformR (1, n) clientGen
       pure (1 == x, x)
   when shouldSend $ do
-    let event_ = API.Event specifiedSampleRate (timestamp e) (fields e)
+    let event_ = API.Event specifiedSampleRate (timestamp e) (KeyMap.fromHashMapText $ fields e)
         localOptions = honeycombClientL %~ (\c -> c { clientConfig = replaceDataset $ replaceHost $ replaceWriteKey clientConfig })
         blockingEvent = runReaderT (API.sendEvent event_) (c & localOptions)
     liftIO $ if Config.sendBlocking clientConfig

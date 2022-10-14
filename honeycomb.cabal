@@ -1,13 +1,13 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.34.7.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 71e86a9d866e470b3be18e84cf0f065d7cd0e6d870980972dc38f8eb2488fd6a
+-- hash: c93d138bcb695436175df572c8c3c75ddeaa5c1db9a06b661e681c85279417a1
 
 name:           honeycomb
-version:        0.0.0.3
+version:        0.0.0.4
 description:    Please see the README on GitHub at <https://github.com/githubuser/honeycomb#readme>
 homepage:       https://github.com/iand675/hs-honeycomb#readme
 bug-reports:    https://github.com/iand675/hs-honeycomb/issues
@@ -34,6 +34,9 @@ library
       Honeycomb.Config
       Honeycomb.Types
   other-modules:
+      Honeycomb.Aeson
+      Honeycomb.API.Auth
+      Honeycomb.API.Auth.Types
       Honeycomb.API.Boards
       Honeycomb.API.Columns
       Honeycomb.API.Datasets
@@ -51,7 +54,7 @@ library
       OverloadedStrings
       RecordWildCards
   build-depends:
-      aeson
+      aeson >=2.0
     , async
     , auto-update
     , base >=4.7 && <5
@@ -92,7 +95,7 @@ test-suite honeycomb-test
       RecordWildCards
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
+      aeson >=2.0
     , async
     , auto-update
     , base >=4.7 && <5

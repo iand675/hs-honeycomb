@@ -1,5 +1,5 @@
 name:                honeycomb
-version:             0.0.0.3
+version:             0.0.0.4
 github:              "iand675/hs-honeycomb"
 license:             BSD3
 author:              "Ian Duncan"
@@ -31,7 +31,7 @@ dependencies:
 - unliftio
 - monad-control
 - chronos
-- aeson
+- aeson >= 2.0
 - mtl
 - text
 - vector
