@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0b718c7b4936c2e825fe072a607b280963741ca2d55bf91551172bc02630351d
+-- hash: c93d138bcb695436175df572c8c3c75ddeaa5c1db9a06b661e681c85279417a1
 
 name:           honeycomb
-version:        0.0.0.3
+version:        0.0.0.4
 description:    Please see the README on GitHub at <https://github.com/githubuser/honeycomb#readme>
 homepage:       https://github.com/iand675/hs-honeycomb#readme
 bug-reports:    https://github.com/iand675/hs-honeycomb/issues
@@ -54,7 +54,7 @@ library
       OverloadedStrings
       RecordWildCards
   build-depends:
-      aeson
+      aeson >=2.0
     , async
     , auto-update
     , base >=4.7 && <5
@@ -95,7 +95,7 @@ test-suite honeycomb-test
       RecordWildCards
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
+      aeson >=2.0
     , async
     , auto-update
     , base >=4.7 && <5
