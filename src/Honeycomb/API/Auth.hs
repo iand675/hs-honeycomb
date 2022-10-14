@@ -10,9 +10,6 @@ import Honeycomb
     MonadHoneycomb,
   )
 import Honeycomb.API.Auth.Types
-  ( Auth,
-    FailureResponse (FailureCode, JsonDecodeFailed),
-  )
 import Honeycomb.Client.Internal (MonadHoneycombConfig, get)
 import Lens.Micro.Extras (view)
 import Network.HTTP.Client (Response (responseBody))
