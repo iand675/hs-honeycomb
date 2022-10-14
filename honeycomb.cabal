@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c93d138bcb695436175df572c8c3c75ddeaa5c1db9a06b661e681c85279417a1
+-- hash: c2000043dd70cb53eba49d090fa9d3c743db6b1e2eb56ee08319f732b8a633e7
 
 name:           honeycomb
 version:        0.0.0.4
@@ -31,11 +31,11 @@ library
       Honeycomb.API.Events
       Honeycomb.API.Markers
       Honeycomb.API.Types
+      Honeycomb.API.Auth
       Honeycomb.Config
       Honeycomb.Types
   other-modules:
       Honeycomb.Aeson
-      Honeycomb.API.Auth
       Honeycomb.API.Auth.Types
       Honeycomb.API.Boards
       Honeycomb.API.Columns

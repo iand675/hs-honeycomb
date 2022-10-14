@@ -1,4 +1,4 @@
-module Honeycomb.API.Auth where
+module Honeycomb.API.Auth (module Honeycomb.API.Auth.Types, getAuth) where
 
 import Control.Exception (throw)
 import Control.Monad.IO.Class (MonadIO)
@@ -10,9 +10,6 @@ import Honeycomb
     MonadHoneycomb,
   )
 import Honeycomb.API.Auth.Types
-  ( Auth,
-    FailureResponse (FailureCode, JsonDecodeFailed),
-  )
 import Honeycomb.Client.Internal (MonadHoneycombConfig, get)
 import Lens.Micro.Extras (view)
 import Network.HTTP.Client (Response (responseBody))
