@@ -60,6 +60,7 @@ library:
     - Honeycomb.API.Events
     - Honeycomb.API.Markers
     - Honeycomb.API.Types
+    - Honeycomb.API.Auth
     - Honeycomb.Config
     - Honeycomb.Types
 

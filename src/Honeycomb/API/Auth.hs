@@ -1,4 +1,4 @@
-module Honeycomb.API.Auth where
+module Honeycomb.API.Auth (module Honeycomb.API.Auth.Types, getAuth) where
 
 import Control.Exception (throw)
 import Control.Monad.IO.Class (MonadIO)
