@@ -1,7 +1,7 @@
 module Honeycomb.API.Auth (module Honeycomb.API.Auth.Types, getAuth) where
 
-import Control.Exception (throw)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Exception (throwIO)
+import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader.Class (asks)
 import Data.Aeson (eitherDecode)
 import qualified Data.Text as T
@@ -21,5 +21,5 @@ getAuth = do
   case getResponseStatusCode r of
     200 -> case eitherDecode (responseBody r) of
       Right r -> pure r
-      Left r -> throw . JsonDecodeFailed . T.pack $ r
-    other -> throw $ FailureCode other (getResponseBody r)
+      Left r -> liftIO . throwIO . JsonDecodeFailed . T.pack $ r
+    other -> liftIO . throwIO $ FailureCode other (getResponseBody r)

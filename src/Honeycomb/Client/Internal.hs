@@ -10,7 +10,7 @@ module Honeycomb.Client.Internal where
 
 import Chronos
 import Control.Concurrent.Async
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Reader.Class
 import Data.Aeson (FromJSON, ToJSON, Value, eitherDecode, encode)
 import qualified Data.ByteString.Lazy as L

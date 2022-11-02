@@ -4,16 +4,16 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c2000043dd70cb53eba49d090fa9d3c743db6b1e2eb56ee08319f732b8a633e7
+-- hash: 2a670d8927ccbe14b8715231c27dedb4b077025fdc2dd914a06603979fa1a011
 
 name:           honeycomb
-version:        0.0.0.4
+version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/honeycomb#readme>
 homepage:       https://github.com/iand675/hs-honeycomb#readme
 bug-reports:    https://github.com/iand675/hs-honeycomb/issues
-author:         Ian Duncan
+author:         Ian Duncan, Jade Lovelace
 maintainer:     ian@iankduncan.com
-copyright:      2021 Ian Duncan
+copyright:      2021 Ian Duncan, 2022 Mercury Technologies, Inc
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
