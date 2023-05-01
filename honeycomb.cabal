@@ -1,13 +1,13 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.7.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2a670d8927ccbe14b8715231c27dedb4b077025fdc2dd914a06603979fa1a011
+-- hash: efd34f9d46dbcd54f614bd58d491c4d012000c831e8a1246fe431274be49c97d
 
 name:           honeycomb
-version:        0.1.0.0
+version:        0.1.0.1
 description:    Please see the README on GitHub at <https://github.com/githubuser/honeycomb#readme>
 homepage:       https://github.com/iand675/hs-honeycomb#readme
 bug-reports:    https://github.com/iand675/hs-honeycomb/issues

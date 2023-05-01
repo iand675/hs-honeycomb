@@ -7,7 +7,7 @@ module Honeycomb.API.Auth.Types where
 import Control.Exception
 import Data.Aeson.TH (defaultOptions, deriveFromJSON)
 import Data.ByteString (ByteString)
-import Data.ByteString.Lazy (LazyByteString)
+import Data.ByteString.Lazy as L
 import Data.Text (Text)
 import Honeycomb.Aeson (snakeCaseOptions)
 
@@ -69,7 +69,7 @@ data Auth = Auth
 $(deriveFromJSON snakeCaseOptions ''Auth)
 
 data FailureResponse
-  = FailureCode Int LazyByteString
+  = FailureCode Int L.ByteString
   | JsonDecodeFailed Text
   deriving stock (Show)
   deriving anyclass (Exception)
