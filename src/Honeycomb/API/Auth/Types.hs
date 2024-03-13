@@ -5,6 +5,7 @@
 module Honeycomb.API.Auth.Types where
 
 import Control.Exception
+import Data.Aeson
 import Data.Aeson.TH (defaultOptions, deriveFromJSON)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy as L
@@ -33,11 +34,21 @@ data ApiKeyAccess = ApiKeyAccess
   }
   deriving stock (Show, Eq)
 
--- XXX: yes, this is intentionally defaultOptions, because for some reason the
--- API is generally snake case but the "createDatasets" is camel case
-$(deriveFromJSON defaultOptions ''ApiKeyAccess)
+instance FromJSON ApiKeyAccess where
+  parseJSON (Object v) = do
+    events <- v .:? "events" .!= False
+    markers <- v .:? "markers" .!= False
+    triggers <- v .:? "triggers" .!= False
+    boards <- v .:? "boards" .!= False
+    queries <- v .:? "queries" .!= False
+    columns <- v .:? "columns" .!= False
+    createDatasets <- v .:? "createDatasets" .!= False
+    slos <- v .:? "slos" .!= False
+    recipients <- v .:? "recipients" .!= False
+    privateBoards <- v .:? "privateBoards" .!= False
+    pure ApiKeyAccess {..}
 
--- | Response to the auth API
+-- | Responses to the auth API
 --  @
 --  {
 --    "api_key_access": {
@@ -58,7 +69,24 @@ $(deriveFromJSON defaultOptions ''ApiKeyAccess)
 --      "slug": "honeycomb-docs"
 --    }
 --  }
+--
+--
+-- {
+--   "api_key_access": {
+--     "createDatasets": true
+--   },
+--   "environment": {
+--     "name": "dev",
+--     "slug": "dev"
+--   },
+--   "team": {
+--     "name": "Mercury",
+--     "slug": "mercury"
+--   },
+--   "type": "ingest"
+-- }
 --  @
+
 data Auth = Auth
   { apiKeyAccess :: ApiKeyAccess
   , environment :: NameAndSlug
